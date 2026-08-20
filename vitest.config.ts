@@ -5,9 +5,6 @@ const config: UserConfig = {
   test: {
     include: ['src/**/*.test.ts'],
     environment: 'node',
-    coverage: {
-      reporter: ['text', 'json-summary'],
-    },
   },
 }
 
