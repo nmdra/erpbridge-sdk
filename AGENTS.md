@@ -10,7 +10,8 @@ Rules for agents making changes to this repository.
 
 - Read the active plan before coding: `.agents/plans/Plan.md`. Implement tasks in order and tick each checkbox as it completes.
 - Each plan task carries a `Verify:` command — the task is done only when that command is green.
-- Open a plan (or extend it) for any work the plan doesn't cover.
+- **`.agents/plans/Plan-auth.md` is a FUTURE plan — do not implement it.** It covers SDK auth and stays dormant until the ERPBridge server's own auth (`ERPBridge/.agents/plans/Plan-Auth.md`) ships.
+- Open a plan (or extend it) for any work the plans don't cover.
 
 ### Small commits
 
@@ -35,13 +36,14 @@ Rules for agents making changes to this repository.
 
 - Versions and changelogs come from **release-please** (Conventional Commits drive bumps: `fix:` → patch, `feat:` → minor, `BREAKING CHANGE:` footer → major). Never hand-edit `CHANGELOG.md` version entries or bump the version field yourself — the release PR does it. Write Unreleased entries only.
 - Publishing uses **npm Trusted Publishing (OIDC)** from CI — no `NODE_AUTH_TOKEN`, provenance is automatic. `package.json` `repository.url` must exactly match the GitHub repo or provenance fails.
+- **Every release ships with a documentation update** in the **erpbridge-docs** repo: user-facing SDK changes are documented under `docs/sdk/` in the same release cycle, and `docs/sdk/agent-guide.mdx` there is kept in sync with this AGENTS.md. Open that docs PR alongside the release PR.
 - CI and release workflows are part of the contract: `.github/workflows/{ci,release,docs}.yml` must stay green; SHA-pin any new third-party action and keep `permissions` least-privilege.
 
 ### Secrets
 
-- Resolve credentials from configuration or environment only — explicit `token` in `createClient({ token })` or the `ERPBridge_TOKEN` env var. Keep token values out of code, logs, tests, and commits.
-- When debugging or writing tests, assert header injection but never log the token value itself.
-- Auth is consume-only: the SDK sends `Authorization: Bearer`; it never creates or revokes tokens (that is server-admin via bridgectl).
+- **v1 ships auth-free by design** (plan decision D17): no token resolution, no bearer injection, no `ERPBridge_TOKEN` handling. The `token`/`tokenEnv` config fields exist but are inert.
+- Never log server responses' `Authorization`/`WWW-Authenticate` header values in tests or debug output.
+- Auth behavior (token resolution, injection, 401 mapping, scope awareness) is implemented only under the future `.agents/plans/Plan-auth.md` — keep it out of v1 code and commits.
 
 ## Conventions
 
