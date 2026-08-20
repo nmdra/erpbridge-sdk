@@ -15,7 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['lts/-2', 'lts/-1', 'lts/*']
+        # lts/-2 (Node 20) is EOL (April 2026) and cannot build tsdown's
+        # runner ("Failed to import module unrun") — keep the two active LTS.
+        node: ['lts/-1', 'lts/*']
     steps:
       - name: Checkout
         # actions/checkout v7.0.1
@@ -60,20 +62,13 @@ jobs:
 
   osv-scan:
     name: vulnerability scan (OSV)
-    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Scan dependencies
-        # google/osv-scanner-action v2.5.1
-        uses: google/osv-scanner-action/scanner@6e4298ebc4db23e847df9b2e2de2939d6f066c67
-        id: osv-scanner
-        with:
-          args: '-r .'
-      - name: Fail on findings (no PR comment)
-        # google/osv-scanner-action v2.5.1
-        uses: google/osv-scanner-action/scan-pr@6e4298ebc4db23e847df9b2e2de2939d6f066c67
-        with:
-          dry-run: 'true'
+    permissions:
+      actions: read
+      security-events: write
+      contents: read
+    # google/osv-scanner-action v2.5.1 — reusable PR workflow that scans the
+    # merge ref, compares against the base, and uploads SARIF to code scanning.
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67
+    with:
+      fail-on-vuln: true
