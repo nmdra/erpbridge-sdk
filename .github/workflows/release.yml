@@ -1,0 +1,59 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: open release PR / cut release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - name: Release Please
+        # googleapis/release-please-action v4.4.1 — opens the release PR from
+        # conventional commits, and on merge creates the tag, the GitHub
+        # Release (notes from CHANGELOG.md), and signals release_created.
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: node
+          package-name: '@erpbridge/sdk'
+
+  publish:
+    name: publish to npm
+    needs: release-please
+    runs-on: ubuntu-latest
+    if: ${{ needs.release-please.outputs.release_created }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Setup Node.js
+        # actions/setup-node v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Publish gate
+        run: npm run lint:publish
+      - name: Publish to npm
+        # npm Trusted Publishing (OIDC): npm mints a short-lived token from
+        # the id-token claim; no NODE_AUTH_TOKEN. Provenance is automatic.
+        # The workflow file name must match the trusted publisher config on
+        # the npm package page (@erpbridge/sdk -> nmdra/erpbridge-sdk).
+        run: npm publish
