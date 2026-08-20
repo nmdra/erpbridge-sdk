@@ -43,7 +43,7 @@ Rules for agents making changes to this repository.
 - Versions and changelogs come from **release-please** (Conventional Commits drive bumps: `fix:` → patch, `feat:` → minor, `BREAKING CHANGE:` footer → major). Never hand-edit `CHANGELOG.md` version entries or bump the version field yourself — the release PR does it. Write Unreleased entries only.
 - Publishing uses **npm Trusted Publishing (OIDC)** from CI — no `NODE_AUTH_TOKEN`, provenance is automatic. `package.json` `repository.url` must exactly match the GitHub repo or provenance fails.
 - **Every release ships with a documentation update** in the **erpbridge-docs** repo: user-facing SDK changes are documented under `docs/sdk/` in the same release cycle, and `docs/sdk/agent-guide.mdx` there is kept in sync with this AGENTS.md. Open that docs PR alongside the release PR.
-- CI and release workflows are part of the contract: `.github/workflows/{ci,release,docs}.yml` must stay green; SHA-pin any new third-party action and keep `permissions` least-privilege.
+- CI and release workflows are part of the contract: `.github/workflows/{ci,release}.yml` must stay green; SHA-pin any new third-party action and keep `permissions` least-privilege. API reference docs live in the erpbridge-docs site (`docs/sdk/api-reference.mdx`), not in a Pages workflow.
 
 ### Secrets
 
