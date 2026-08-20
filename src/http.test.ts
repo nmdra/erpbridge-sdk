@@ -110,6 +110,12 @@ describe('request', () => {
     controller.abort()
     await expect(promise).rejects.toBeInstanceOf(ErpbridgeError)
   })
+
+  it('skips the per-request timeout when noTimeout is set', async () => {
+    const promise = request(cfg(50), { method: 'GET', path: '/api/slow', noTimeout: true })
+    const res = await promise
+    expect(res.body).toEqual({ slow: true })
+  })
 })
 
 describe('requestStream', () => {

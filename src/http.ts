@@ -15,6 +15,8 @@ export interface HttpRequest {
   headers?: Record<string, string>
   /** External abort signal (e.g. from a caller's AbortController). */
   signal?: AbortSignal
+  /** Skip the per-request timeout (long-lived streams, e.g. SSE). */
+  noTimeout?: boolean
 }
 
 /** A decoded JSON response from the server. */
@@ -50,8 +52,8 @@ export async function requestStream(config: ErpbridgeConfig, req: HttpRequest): 
   if (req.body !== undefined) headers.set('Content-Type', 'application/json')
   headers.set('Accept', 'application/json, text/event-stream')
 
-  const timeoutSignal = AbortSignal.timeout(config.timeoutMs)
-  const signal = req.signal ? AbortSignal.any([timeoutSignal, req.signal]) : timeoutSignal
+  const timeoutSignal = req.noTimeout ? undefined : AbortSignal.timeout(config.timeoutMs)
+  const signal = req.signal ? (timeoutSignal ? AbortSignal.any([timeoutSignal, req.signal]) : req.signal) : timeoutSignal
 
   let res: Response
   try {
