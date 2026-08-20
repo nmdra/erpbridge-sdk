@@ -90,6 +90,8 @@ export interface CacheStats {
 
 /** A single metric sample with its label set. */
 export interface MetricSample {
+  /** Full series name, e.g. `erp_request_duration_seconds_bucket`. */
+  name?: string
   /** Label names and values, e.g. `{ method: "GET" }`. */
   labels: Record<string, string>
   /** The sample's numeric value. */
