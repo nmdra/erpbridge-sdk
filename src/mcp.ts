@@ -6,7 +6,7 @@ import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
 const CLIENT_NAME = '@erpbridge/sdk'
 const CLIENT_VERSION = '0.1.0'
 const INTERNAL_ERROR_CODE = -32000
-const INVALID_PARAMS_CODE = -32602
+export const INVALID_PARAMS_CODE = -32602
 
 /**
  * MCP client wrapper around the official `@modelcontextprotocol/client`
