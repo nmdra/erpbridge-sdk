@@ -1,5 +1,13 @@
 # Changelog
 
+All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
+
+## [Unreleased]
+
+### Removed
+
+- Dropped the TypeDoc API-reference site and its Pages deploy workflow (typedoc cannot run on TypeScript 7); the hand-written SDK docs in the erpbridge-docs site remain the single source of truth.
+
 ## [0.1.0](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.0.1...sdk-v0.1.0) (2026-08-20)
 
 
@@ -15,24 +23,3 @@
 * add typed tool proxy with schema validation ([c994a3f](https://github.com/nmdra/erpbridge-sdk/commit/c994a3fe4a842e6878dc4b5c360317e820a5e2f3))
 * assemble the public client facade and subpath entries ([6868af8](https://github.com/nmdra/erpbridge-sdk/commit/6868af8ef84ad3d4816b1eff9b76791135697f0c))
 * normalize client config with defaults ([80600a9](https://github.com/nmdra/erpbridge-sdk/commit/80600a9cc505f9709652c0f64c092ace2e5729f6))
-
-## Changelog
-
-All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
-
-## Unreleased
-
-### Removed
-
-- Dropped the TypeDoc API-reference site and its Pages deploy workflow (typedoc cannot run on TypeScript 7); the hand-written SDK docs in the erpbridge-docs site remain the single source of truth.
-
-### Added
-
-- Initial project scaffold: dual ESM/CJS build (tsdown), strict TypeScript config, vitest, and package metadata for `@erpbridge/sdk`.
-- MCP client wrapper (`McpClient`) with session lifecycle, version negotiation, one transparent reconnect, and typed protocol errors.
-- Exact-name tool proxy (`client.tools`) with lazy discovery and per-property argument validation against the tool input schema.
-- Log aggregation: `client.logs.recent()` and `client.logs.stream()` (typed SSE).
-- Metrics: `client.metrics.text()` raw Prometheus text and `client.metrics.parsed()` families.
-- Health and cache: `client.health()` and `client.cache.stats()` / `client.cache.flush()`.
-- Tool registry and direct invoke: `client.registry.list()` / `apply()` / `delete()` and `client.invoke()`.
-- Public facade `createClient()` with nine member surfaces and `@erpbridge/sdk` subpath entries (`./client`, `./rest`, `./types`).
