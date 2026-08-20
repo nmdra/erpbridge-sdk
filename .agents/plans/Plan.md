@@ -100,7 +100,7 @@ Every task that adds or changes public behavior updates the relevant README cont
       (**Seam:** n/a — writing; **Files:** README.md, CHANGELOG.md; **Verify:** `npm test && npm run build && npm run lint:publish` green; README renders on npmjs package page preview; `npm run build` green in erpbridge-docs)
 - [x] **T12 — Packed-consumer smoke milestone (R5)** — after T11b and T1a, run `npm run build && npm run lint:publish && npm pack`, install the tarball into a scratch project and smoke-test `createClient` + `mcp.listTools()` + `logs.recent()`; **also import every subpath (`@erpbridge/sdk/client`, `/rest`, `/types`) to verify the exports map resolves in a real consumer** (catches the class of bug the MCP SDK v1.29.0 had). This is an internal package-shape check: do not change the package version, create a versioned CHANGELOG entry, tag, create a GitHub release, or publish to npm.
       (**Seam:** n/a — milestone; **Files:** scratch smoke script only (uncommitted); **Verify:** `npm test && npm run build && npm run lint:publish`; packed tarball installs in scratch project; smoke script runs against fixture and imports all subpaths)
-- [ ] **T13 — Live integration suite** — `tests/integration/` gated behind the `ERPBridge_TEST_SERVER` env var (skips otherwise). Three sub-files:
+- [x] **T13 — Live integration suite** — `tests/integration/` gated behind the `ERPBridge_TEST_SERVER` env var (skips otherwise). Three sub-files:
 
       **`integration.test.ts`** — happy paths:
       1. `health()` → `{ status: "ok" }`
@@ -120,7 +120,7 @@ Every task that adds or changes public behavior updates the relevant README cont
       1. `mcp.callTool("nonexistent_tool", {})` → `NotFoundError`
       2. `invoke("nonexistent_tool", {})` → mapped error
       3. `cache.flush()` without redis → `ServerError` (503)
-      4. real 404/500 where triggerable — verify at T13 time whether `system.sensitive_log_test` actually 500s
+      4. real 404/500 where triggerable — verified at T13 time: `system.sensitive_log_test` does **not** 500 (logs + returns success); no built-in tool 500s, so no live 500 trigger exists yet — documented in the runbook
 
       **`tests/integration/README.md`** — runbook: prerequisites (Docker or Go + Python/uv); server startup via Docker Compose (recommended) — `docker compose up -d --build` in the ERPBridge repo, poll `/mcp/health` for readiness, `make generate-tools` to seed tools; health-check polling before the run; full command `ERPBridge_TEST_SERVER=http://localhost:8080 npm run test:integration`; teardown `docker compose down -v`; why integration tests are not in CI yet (future path: Docker Compose service in the CI workflow or a dedicated `integration.yml`).
 
