@@ -109,7 +109,7 @@ function mapHttpError(res: Response, body: unknown): ErpbridgeError {
 }
 
 function errorMessage(status: number, body: unknown): string {
-  if (typeof body === 'string' && body) return body
+  if (typeof body === 'string' && body) return body.trim()
   if (body && typeof body === 'object') {
     const candidate = (body as Record<string, unknown>).error ?? (body as Record<string, unknown>).message
     if (typeof candidate === 'string') return candidate

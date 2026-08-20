@@ -7,7 +7,8 @@ export interface Route {
   method: string
   /** Exact request path (query string ignored for matching). */
   path: string
-  status?: number
+  /** Response status; may be computed from the incoming request. */
+  status?: number | ((req: IncomingMessage, rawBody: string) => number)
   body?: unknown | ((req: IncomingMessage, rawBody: string) => unknown)
   headers?: Record<string, string>
   /** Delay before responding, used to exercise timeouts. */
@@ -32,7 +33,8 @@ export async function startFixtureServer(routes: Route[]): Promise<FixtureServer
     const body = typeof route.body === 'function' ? await route.body(req, rawBody) : route.body
     const payload = body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body)
     const headers = { 'Content-Type': 'application/json', ...route.headers }
-    const respondNow = () => respond(res, route.status ?? 200, headers, payload)
+    const status = typeof route.status === 'function' ? await route.status(req, rawBody) : (route.status ?? 200)
+    const respondNow = () => respond(res, status, headers, payload)
     if (route.delayMs) setTimeout(respondNow, route.delayMs)
     else respondNow()
   })
