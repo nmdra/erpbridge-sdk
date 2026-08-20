@@ -1,0 +1,107 @@
+{
+  "name": "@erpbridge/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client library for the ERPBridge server family — MCP tool calls, REST tool invocation, log aggregation, metrics, cache, and health.",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "erpbridge",
+    "mcp",
+    "model-context-protocol",
+    "client",
+    "agent",
+    "ai",
+    "logs",
+    "metrics",
+    "prometheus"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nmdra/erpbridge-sdk.git"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.mts",
+        "default": "./dist/client.mjs"
+      },
+      "require": {
+        "types": "./dist/client.d.cts",
+        "default": "./dist/client.cjs"
+      }
+    },
+    "./rest": {
+      "import": {
+        "types": "./dist/rest.d.mts",
+        "default": "./dist/rest.mjs"
+      },
+      "require": {
+        "types": "./dist/rest.d.cts",
+        "default": "./dist/rest.cjs"
+      }
+    },
+    "./types": {
+      "import": {
+        "types": "./dist/types.d.mts",
+        "default": "./dist/types.mjs"
+      },
+      "require": {
+        "types": "./dist/types.d.cts",
+        "default": "./dist/types.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "dist/client.d.mts"
+      ],
+      "rest": [
+        "dist/rest.d.mts"
+      ],
+      "types": [
+        "dist/types.d.mts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "lint:publish": "npm run build && publint && attw --pack && node scripts/assert-pack.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "~2.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@types/node": "^26.2.0",
+    "publint": "^0.3.24",
+    "tsdown": "^0.22.14",
+    "typedoc": "^0.28.20",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}
