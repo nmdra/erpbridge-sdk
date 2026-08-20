@@ -92,8 +92,7 @@
     "typecheck": "tsc --noEmit",
     "lint:publish": "npm run build && publint && attw --pack && node scripts/assert-pack.mjs",
     "test:mcp-compat": "node scripts/mcp-compat.mjs",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "docs": "typedoc"
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "~2.0.0"
@@ -103,7 +102,6 @@
     "@types/node": "^26.2.0",
     "publint": "^0.3.24",
     "tsdown": "^0.22.14",
-    "typedoc": "^0.28.20",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }

@@ -22,6 +22,10 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 ## Unreleased
 
+### Removed
+
+- Dropped the TypeDoc API-reference site and its Pages deploy workflow (typedoc cannot run on TypeScript 7); the hand-written SDK docs in the erpbridge-docs site remain the single source of truth.
+
 ### Added
 
 - Initial project scaffold: dual ESM/CJS build (tsdown), strict TypeScript config, vitest, and package metadata for `@erpbridge/sdk`.

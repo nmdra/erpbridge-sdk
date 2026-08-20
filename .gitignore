@@ -3,6 +3,5 @@ dist/
 *.tgz
 coverage/
 .scratch/
-docs/api/
 *.log
 .DS_Store
