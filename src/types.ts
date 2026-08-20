@@ -88,6 +88,138 @@ export interface CacheStats {
   redisMemory: string
 }
 
+/** Versioned identity of a registered tool (server `metadata`). */
+export interface RegistryToolMetadata {
+  /** Exact registered tool name (bare, no prefix). */
+  name: string
+  /** SemVer version of the tool. */
+  version: string
+  /** Module the tool belongs to. */
+  module?: string
+  /** Lifecycle status, e.g. `"ready"` or `"degraded"`. */
+  status?: string
+  /** Soft-delete visibility flag. */
+  isActive?: boolean
+}
+
+/** A tool resource as stored in the REST registry (wire shape). */
+export interface RegistryTool {
+  /** Resource API version, e.g. `"erpbridge.io/v1"`. */
+  apiVersion: string
+  /** Resource kind, always `"Tool"`. */
+  kind: string
+  /** Versioned identity of the tool. */
+  metadata: RegistryToolMetadata
+  /** Behavior, interface, and execution details of the tool. */
+  spec: RegistryToolSpec
+}
+
+/** Semantic description of a registered tool for LLM selection. */
+export interface RegistryToolDescription {
+  /** One-line summary of the tool. */
+  short: string
+  /** Situations where the tool fits. */
+  whenToUse?: string[]
+  /** Situations where the tool does not fit. */
+  whenNotToUse?: string[]
+  /** Example argument sets. */
+  examples?: string[]
+}
+
+/** Argument property of a tool's input schema. */
+export interface RegistryToolProperty {
+  /** JSON Schema type, e.g. `"string"`. */
+  type: string
+  description?: string
+  /** Allowed values for enum-like arguments. */
+  enum?: string[]
+  default?: unknown
+}
+
+/** Argument schema for a registered tool. */
+export interface RegistryToolInputSchema {
+  /** JSON Schema type of the arguments object, always `"object"`. */
+  type: string
+  /** Argument properties keyed by name. */
+  properties: Record<string, RegistryToolProperty>
+  /** Argument names the LLM must provide. */
+  required?: string[]
+}
+
+/** HTTP execution binding of a registered tool. */
+export interface RegistryToolExecution {
+  /** Execution kind, `"http"`. */
+  type: string
+  /** HTTP method of the target ERP API. */
+  method: string
+  /** URL of the target ERP API. */
+  endpoint: string
+  /** Maps LLM argument names to ERP argument names. */
+  mapping?: Record<string, string>
+  /** JSONPath into the ERP response to unwrap as the result. */
+  responsePath?: string
+}
+
+/** Auth requirements of a registered tool. */
+export interface RegistryToolSecurity {
+  /** `"api-key"`, `"basic"`, or `"bearer"`. */
+  authType: string
+  /** Environment variable name or vault key holding the credential. */
+  credentialRef: string
+}
+
+/** LLM routing hints for a registered tool. */
+export interface RegistryToolRouting {
+  /** Selection priority. */
+  priority: number
+  /** Signals that make this tool a good fit. */
+  signals: string[]
+  /** Signals that make this tool a poor fit. */
+  antiSignals: string[]
+}
+
+/** Support lifecycle of a tool version. */
+export interface RegistryToolLifecycle {
+  /** `"stable"`, `"deprecated"`, or `"sunset"`. */
+  status: string
+  /** ISO date the tool became deprecated. */
+  deprecatedAt?: string
+  /** ISO date the tool will be removed. */
+  sunsetAt?: string
+  /** Name of the tool version replacing this one. */
+  replacement?: string
+}
+
+/** Behavior, interface, and execution details of a registered tool. */
+export interface RegistryToolSpec {
+  description?: RegistryToolDescription
+  inputSchema?: RegistryToolInputSchema
+  /** Optional output schema of the ERP response. */
+  outputSchema?: unknown
+  execution?: RegistryToolExecution
+  /** Optional cache behavior of the tool. */
+  cache?: unknown
+  security?: RegistryToolSecurity
+  routing?: RegistryToolRouting
+  lifecycle?: RegistryToolLifecycle
+}
+
+/** Result of a successful `registry.apply()`. */
+export interface ToolApplyResult {
+  /** Always `"applied"`. */
+  status: string
+  /** Name of the applied tool. */
+  name: string
+  /** Version of the applied tool. */
+  version: string
+}
+
+/** Options for `registry.delete()`. */
+export interface RegistryDeleteOptions {
+  /** Hard-delete from the store; otherwise soft delete. */
+  hard?: boolean
+}
+
 /** A single metric sample with its label set. */
 export interface MetricSample {
   /** Full series name, e.g. `erp_request_duration_seconds_bucket`. */
