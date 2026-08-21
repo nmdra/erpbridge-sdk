@@ -89,6 +89,7 @@
   "scripts": {
     "build": "tsdown",
     "test": "vitest run --passWithNoTests",
+    "test:browser-bundle": "node scripts/assert-browser-bundle.mjs",
     "typecheck": "tsc --noEmit",
     "lint:publish": "npm run build && publint && attw --pack && node scripts/assert-pack.mjs",
     "test:mcp-compat": "node scripts/mcp-compat.mjs",
@@ -103,6 +104,7 @@
     "publint": "^0.3.24",
     "tsdown": "^0.22.14",
     "typescript": "^7.0.2",
+    "vite": "^8.2.2",
     "vitest": "^4.1.11"
   }
 }

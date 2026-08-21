@@ -38,6 +38,8 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: Browser bundle smoke test
+        run: npm run test:browser-bundle
 
   publish-gate:
     name: publish gate

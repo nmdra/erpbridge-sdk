@@ -1,26 +1,12 @@
 import { Client, ProtocolError as McpProtocolError, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import type { ContentBlock } from '@modelcontextprotocol/client'
 import type { ErpbridgeConfig, ToolCallArguments, ToolDefinition, ToolResult } from './types.js'
-import { createRequire } from 'node:module'
 import { INTERNAL_ERROR_CODE } from './errors.js'
 import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
+import { SDK_VERSION } from './version.js'
 
 const CLIENT_NAME = '@erpbridge/sdk'
-
-/**
- * Advertised in the MCP initialize handshake. Read from package.json so it
- * stays in sync with releases; falls back rather than failing module load
- * when the manifest cannot be resolved (e.g. exotic bundling).
- */
-function resolveClientVersion(): string {
-  try {
-    const pkg = createRequire(import.meta.url)('../package.json') as { version?: unknown }
-    return typeof pkg.version === 'string' ? pkg.version : '0.0.0'
-  } catch {
-    return '0.0.0'
-  }
-}
-const CLIENT_VERSION = resolveClientVersion()
+const CLIENT_VERSION = SDK_VERSION
 export const INVALID_PARAMS_CODE = -32602
 
 /**

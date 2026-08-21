@@ -187,3 +187,70 @@ Two-axis review of `2e4d7b15...HEAD` (report: `.scratch/summaries/2026-08-20T213
 - **Server auth (tracking)**: ERPBridge's `Plan-Auth.md` (A1–A10) is unimplemented. SDK auth starts when it ships — see `.agents/plans/Plan-auth.md` (future).
 - **Prefix normalization**: server registers bare tool names today; if the server later adds the `erp.` prefix (AGENTS.md says it), the proxy key strategy in D6 may need a normalization option. Tracked, not blocking v1.
 - **tools proxy staleness (T6 follow-up)**: the proxy's discovered tool list is cached for the client's lifetime; it is not invalidated on `notifications/tools/list_changed`. Tracked for a post-v1 hardening task, not blocking v1.
+
+## Browser-compatible MCP/tools (post-v0.1.0)
+
+### Goal
+
+Let modern browser applications bundle and use the existing MCP client and
+exact-name `client.tools` proxy without Node built-in polyfills, while keeping
+the current Node >=20 ESM and CJS consumer contract unchanged. Browser support
+is limited to MCP/tools; REST APIs remain unsupported for cross-origin browser
+use in this release.
+
+### Current State
+
+- `src/mcp.ts` statically imports `createRequire` from `node:module` and calls
+  it while evaluating `CLIENT_VERSION` (`src/mcp.ts:4-23`). The generated ESM
+  client chunk preserves that import (`dist/client-D-OMAqwn.mjs:3`), so a
+  browser bundler must resolve a Node-only module even when the package-version
+  lookup would fall back at runtime.
+- The root and `./client` entries load that MCP chunk (`src/index.ts:1,7`; the
+  `./rest` entry does not), while the package already publishes ESM and CJS
+  branches (`package.json:31-69`).
+- `@modelcontextprotocol/client@2.0.0` has its own browser-aware conditional
+  shim (`node_modules/@modelcontextprotocol/client/package.json:74-104`) and
+  its root client code imports no `node:*` modules. It remains external from
+  this package by design (`tsdown.config.ts:15-17`).
+- ERPBridge already permits browser MCP origins and exposes `Mcp-Session-Id`,
+  but its preflight allowlist omits the required `MCP-Protocol-Version` request
+  header (`../ERPBridge/internal/mcp/server.go:469-473`). The MCP Streamable
+  HTTP spec requires this header on subsequent requests, and browsers require
+  the session header to be CORS-exposed ([MCP transport spec](https://modelcontextprotocol.io/specification/draft/basic/transports), [MCP browser CORS guidance](https://py.sdk.modelcontextprotocol.io/run/asgi/)).
+- Conditional exports should select distinct artifacts only where runtime
+  behavior differs; a universal `default` branch is preferred to a redundant
+  browser branch ([Node package documentation](https://nodejs.org/api/packages.html)).
+
+### Decisions
+
+| # | Decision | Rationale / rejected |
+| --- | --- | --- |
+| B1 | **Browser contract:** modern browsers with native `fetch`, `URL`, `AbortSignal`, readable streams, and Web Crypto may import the package ESM build and use only `client.mcp`, `client.tools`, and `client.close()`. Node >=20 ESM/CJS support and all existing public APIs remain unchanged. | Matches the requested MCP/tools-only scope. REST endpoints receive no new CORS promise and must use Node, a same-origin deployment, or an application proxy. |
+| B2 | **One universal MCP implementation:** remove every Node built-in import from shipped MCP source; inject the SDK version at build/test-config time rather than reading `package.json` at runtime. Keep the version accurate in the MCP `initialize` client-info. | The current `try/catch` cannot save a static `node:module` import from browser resolution. A Node-only MCP entry or a browser-only facade would duplicate behavior without a present runtime difference. |
+| B3 | **Package shape:** preserve the existing root, `./client`, `./rest`, `./types`, ESM, CJS, declaration, and legacy fallback exports. Emit the shared ESM code with a neutral/ES2022-compatible build target; do not add a `browser` condition that points to the same artifact. | Node retains the tested CJS branch; browser bundlers consume ESM. Environment conditions are reserved for future truly divergent artifacts. |
+| B4 | **Server boundary:** change only `/mcp/` CORS to permit `MCP-Protocol-Version`, retaining the existing origin/method/header policy and exposed `Mcp-Session-Id`. Do not add global REST CORS. | Makes the supported browser MCP flow work without exposing management, logs, metrics, cache, registry, or direct-invoke endpoints cross-origin. |
+| B5 | **Compatibility proof:** use Vite as an explicit development dependency and bundle a packed-package consumer that imports both the root facade and `@erpbridge/sdk/client`; separately retain Node ESM/CJS load checks and add an ERPBridge preflight test. | A source-level search is insufficient: the regression is a consumer-bundler resolution failure. Vite exercises the installed package's ESM/conditional dependency path. |
+
+### Tasks
+
+- [x] **B1 — Make MCP version metadata browser-safe (one SDK commit).** Start TDD by extending `src/mcp.test.ts` to prove the handshake still advertises the package version after removing runtime manifest loading. Add an internal version module or build-time global that is replaced by tsdown and Vitest configuration with the value from `package.json`; remove `createRequire`/`node:module` from `src/mcp.ts` and all published SDK source. Keep this value internal—no new public API export. Configure the ESM build as neutral with an ES2022-compatible target, preserving current CJS output and external MCP dependency. Update `README.md`, `CHANGELOG.md` Unreleased, and the paired `erpbridge-docs` SDK installation/overview/MCP-tools pages to state the Node and browser MCP/tools contract, browser prerequisites, and the explicit REST limitation. (**Seam:** `McpClient.connect()` → fixture-captured `clientInfo`; emitted ESM artifact; **Files:** `src/mcp.ts`, new internal version module if needed, `src/mcp.test.ts`, `tsdown.config.ts`, `vitest.config.ts`, `README.md`, `CHANGELOG.md`, `../erpbridge-docs/docs/sdk/{installation,overview,mcp-tools}.mdx`; **Verify:** focused MCP test is red before the change, then `npm test && npm run typecheck && npm run build`, `node -e "require('./dist/client.cjs')"`, and `node -e "import('./dist/client.mjs')"` are green; `rg 'node:module|createRequire' src dist` has no published-code matches.)
+
+- [x] **B2 — Add a packed browser-bundle regression gate (same SDK commit only if it is needed to make B1 green; otherwise one `test:` commit).** Add Vite as a direct development dependency and a `test:browser-bundle` script. Its hermetic temporary consumer must install the current packed tarball, production-bundle one entry importing `createClient` from the root and another importing the public `createClient` from `@erpbridge/sdk/client`, and fail if bundling fails or output retains `node:module`/`createRequire`. Run it in CI after the normal build; do not run a live browser or call a real server from this gate. Preserve `npm test` as the fast fixture suite. (**Seam:** real package `exports` resolution in Vite's browser dependency pipeline; **Files:** `package.json`, `package-lock.json`, new `scripts/assert-browser-bundle.mjs`, `.github/workflows/ci.yml`; **Verify:** the test fails against the current artifact, then `npm run build && npm run test:browser-bundle && npm test && npm run typecheck` is green, followed by `npm run lint:publish`.)
+
+- [x] **B3 — Align ERPBridge MCP CORS with browser protocol requests (one ERPBridge `fix:` commit).** Add `MCP-Protocol-Version` to the existing Streamable HTTP CORS allowed headers without changing origins, methods, credentials, REST handlers, or auth behavior. Extend the server's HTTP tests with an `OPTIONS /mcp/` cross-origin preflight requesting `Content-Type`, `Mcp-Session-Id`, and `MCP-Protocol-Version`; assert the allowed headers include all three and `Mcp-Session-Id` remains exposed on the initialize response. Update the server connectivity guide’s browser statement to name the required protocol/session behavior. (**Seam:** `Server.ServeHTTP()` Streamable HTTP CORS middleware; **Files:** `../ERPBridge/internal/mcp/server.go`, `../ERPBridge/internal/mcp/server_test.go`, `../ERPBridge/docs/connectivity.md`; **Verify:** focused Go CORS test is red first, then `go test ./internal/mcp/...` and the ERPBridge repository’s standard test/build gates are green.)
+
+- [x] **B4 — Release-level consumer verification and documentation review (one SDK `docs:`/`test:` commit only if B1-B2 did not already contain the required docs).** Run the packed Node consumer smoke plus the new Vite smoke against the release candidate. Confirm the docs distinguish browser MCP/tools from Node-only/cross-origin-unsupported REST calls and do not imply browser auth support while v1 auth remains inert. Record the new browser scenario in `.scratch/testing/` only when it reveals a new environment fact, failure, or flake; do not commit scratch content. (**Seam:** packed tarball installed by independent Node and browser consumers; **Files:** documentation only if corrections are needed; **Verify:** `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`; Node packed-consumer smoke remains green; docs-site `npm run build` is green in `../erpbridge-docs`.)
+
+### Verification
+
+1. The ESM artifacts reachable from `@erpbridge/sdk` and `@erpbridge/sdk/client` contain no Node built-in import or `createRequire` call; the CJS artifacts still load under Node.
+2. The MCP fixture captures the exact package version in the initialize handshake for source tests and the packed Node consumer.
+3. A Vite production build of a consumer installed from the tarball succeeds for both supported browser import paths without a Node polyfill.
+4. ERPBridge accepts a browser-style MCP preflight containing `MCP-Protocol-Version`, returns/exposes `Mcp-Session-Id`, and preserves the existing MCP behavior. No REST route gains cross-origin access.
+5. README and SDK-site docs state the support matrix precisely: browser = MCP/tools only; Node >=20 = full SDK; browser deployment needs ERPBridge MCP CORS; v1 still has no auth handling.
+
+### Assumptions
+
+- “Browser” means a current evergreen browser used through an ESM-capable bundler such as Vite, not direct unbundled npm imports, legacy browsers, React Native, Deno, Workers, or SSR-specific behavior.
+- Browser requests target an ERPBridge instance using the MCP `/mcp/` Streamable HTTP endpoint. A frontend must still use a safe deployment origin policy; this task preserves the server’s existing `*` policy rather than designing a new origin configuration system.
+- REST browser support, browser credential storage, bearer injection, and global CORS are explicitly deferred; auth remains owned by the dormant `Plan-auth.md`.

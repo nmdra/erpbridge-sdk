@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startMcpFixture, type McpFixture } from '../fixtures/mcp-server.js'
 import type { ErpbridgeConfig, ToolResult } from './types.js'
@@ -39,7 +39,7 @@ describe('McpClient', () => {
   it('advertises the installed package version in the handshake', async () => {
     const client = new McpClient(config())
     await client.connect()
-    const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
+    const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }
     expect(fixture.lastClientInfo()).toMatchObject({ name: '@erpbridge/sdk', version })
     await client.close()
   })

@@ -6,6 +6,7 @@ aggregate logs, read metrics, check health, and manage the cache and tool
 registry.
 
 - Node.js >= 20, dual ESM + CJS, dependency-light
+- Browser ESM support for the MCP client and exact-name tool proxy
 - Typed errors across the whole surface
 - No auth in v1 — v1 connects anonymously and surfaces server 401s as
   `AuthenticationError`. Auth is owned by the future auth plan (see
@@ -28,6 +29,13 @@ await client.mcp.connect()
 const result = await client.tools.list_employees({ department: 'engineering' })
 console.log(result.result)
 ```
+
+Browser applications can use the ESM build for `client.mcp` and
+`client.tools` when the ERPBridge `/mcp/` endpoint is configured for the
+frontend origin. The browser requires the server's MCP CORS policy to allow
+the protocol and session headers. The REST surfaces are not covered by the
+browser support contract in this release; use Node.js, a same-origin server,
+or an application proxy for those APIs.
 
 `client.tools` is a lazy proxy over the MCP `tools/list` result: every property
 is a registered tool called by its exact name. Call `client.mcp.close()` when

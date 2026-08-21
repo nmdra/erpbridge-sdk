@@ -25,8 +25,11 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 ### Fixed
 
+- Removed the runtime `node:module` dependency from the MCP client version
+  lookup so browser ESM bundlers can use the MCP/tools surface without a Node
+  built-in polyfill. Node ESM and CJS consumers remain supported.
 - MCP unknown-tool errors now require the exact tool name (`tool '<name>' not found`) before mapping to `NotFoundError`; a message mentioning a different tool no longer mis-classifies.
-- MCP client-info version now reads from `package.json` at runtime, so the advertised version stays in sync with releases (previously hard-coded in two places).
+- MCP client-info version is injected from `package.json` at build time, so the advertised version stays in sync with releases without a runtime manifest lookup (previously hard-coded in two places).
 
 ### Removed
 
