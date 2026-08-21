@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
-import type { IncomingMessage, Server, ServerResponse } from 'node:http'
+import type { IncomingMessage, Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { readBody, respond } from './helpers.js'
 
 /** A fixture route. `body` may be computed from the incoming request. */
 export interface Route {
@@ -44,18 +45,4 @@ export async function startFixtureServer(routes: Route[]): Promise<FixtureServer
     url: `http://127.0.0.1:${port}`,
     close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
   }
-}
-
-function respond(res: ServerResponse, status: number, headers: Record<string, string>, body: string): void {
-  res.writeHead(status, headers)
-  res.end(body)
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
 }

@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
-import type { IncomingMessage, Server, ServerResponse } from 'node:http'
+import type { IncomingMessage, Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Socket } from 'node:net'
+import { closeTrackedServer, readBody, respondJson, trackRequestSocket } from './helpers.js'
 
 /** A tool the fixture exposes over MCP. */
 export interface McpToolFixture {
@@ -48,9 +49,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
   const sockets = new Set<Socket>()
 
   const server: Server = createServer(async (req, res) => {
-    req.socket.setNoDelay(true)
-    sockets.add(req.socket)
-    res.on('close', () => sockets.delete(req.socket))
+    trackRequestSocket(req, res, sockets)
 
     const url = new URL(req.url ?? '/', 'http://localhost')
 
@@ -183,29 +182,11 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
     url: `http://127.0.0.1:${port}`,
     mcpUrl: `http://127.0.0.1:${port}/mcp/`,
     handshakeCount: () => handshakes,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        for (const socket of sockets) socket.destroy()
-        server.close((err) => (err ? reject(err) : resolve()))
-      }),
+    close: () => closeTrackedServer(server, sockets),
   }
 }
 
-function respondSse(res: ServerResponse, payload: unknown, headers: Record<string, string> = {}): void {
+function respondSse(res: import('node:http').ServerResponse, payload: unknown, headers: Record<string, string> = {}): void {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', ...headers })
   res.end(`data: ${JSON.stringify(payload)}\n\n`)
-}
-
-function respondJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(payload))
-}
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
 }

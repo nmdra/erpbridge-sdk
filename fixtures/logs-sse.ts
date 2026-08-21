@@ -1,8 +1,9 @@
 import { createServer } from 'node:http'
-import type { Server, ServerResponse } from 'node:http'
+import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Socket } from 'node:net'
 import type { LogRecord } from '../src/types.js'
+import { closeTrackedServer, respondJson, trackRequestSocket } from './helpers.js'
 
 export interface LogsSseOptions {
   /** Records returned by `GET /api/logs/recent`. */
@@ -36,9 +37,7 @@ export async function startLogsSseFixture(options: LogsSseOptions = {}): Promise
   const sockets = new Set<Socket>()
 
   const server: Server = createServer(async (req, res) => {
-    req.socket.setNoDelay(true)
-    sockets.add(req.socket)
-    res.on('close', () => sockets.delete(req.socket))
+    trackRequestSocket(req, res, sockets)
     const url = new URL(req.url ?? '/', 'http://localhost')
 
     if (req.method === 'GET' && url.pathname === '/api/logs/recent') {
@@ -81,15 +80,6 @@ export async function startLogsSseFixture(options: LogsSseOptions = {}): Promise
   return {
     url: `http://127.0.0.1:${port}`,
     connections: () => connections,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        for (const socket of sockets) socket.destroy()
-        server.close((err) => (err ? reject(err) : resolve()))
-      }),
+    close: () => closeTrackedServer(server, sockets),
   }
-}
-
-function respondJson(res: ServerResponse, status: number, payload: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' })
-  res.end(JSON.stringify(payload))
 }
