@@ -21,12 +21,16 @@ export interface ParsedMetrics {
 
 interface FamilyContext {
   name: string
-  type: string
+  type: MetricFamily['type']
   help: string
   samples: MetricSample[]
 }
 
-const SUPPORTED_TYPES = new Set(['counter', 'gauge', 'histogram'])
+type FamilyType = MetricFamily['type']
+const SUPPORTED_TYPES: ReadonlySet<FamilyType> = new Set(['counter', 'gauge', 'histogram'])
+function isSupportedType(type: string): type is FamilyType {
+  return (SUPPORTED_TYPES as ReadonlySet<string>).has(type)
+}
 
 /**
  * Line-oriented parser for the Prometheus text exposition format
@@ -52,7 +56,7 @@ export function parsePrometheusText(text: string): ParsedMetrics {
       } else if (directive === 'TYPE' && name) {
         const type = rest.join(' ')
         flush(current, families)
-        if (SUPPORTED_TYPES.has(type)) {
+        if (isSupportedType(type)) {
           current = { name, type, help: helpByFamily.get(name) ?? '', samples: [] }
         } else {
           current = undefined
@@ -77,7 +81,7 @@ export function parsePrometheusText(text: string): ParsedMetrics {
 
 function flush(current: FamilyContext | undefined, families: MetricFamily[]): void {
   if (current === undefined) return
-  families.push({ name: current.name, type: current.type as MetricFamily['type'], help: current.help, samples: current.samples })
+  families.push({ name: current.name, type: current.type, help: current.help, samples: current.samples })
 }
 
 function matchesFamily(sampleName: string, family: FamilyContext): boolean {
