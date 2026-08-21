@@ -165,6 +165,21 @@ describe('McpClient', () => {
     }
   })
 
+  it('propagates an aborted request instead of reconnecting', async () => {
+    const abortingFetch: typeof fetch = async (input, init) => {
+      if (typeof init?.body === 'string' && init.body.includes('"tools/call"')) {
+        throw Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })
+      }
+      return globalThis.fetch(input, init)
+    }
+    const client = new McpClient({ ...config(), fetch: abortingFetch })
+    await client.connect()
+    expect(fixture.handshakeCount()).toBe(1)
+    await expect(client.callTool('list_employees', {})).rejects.toMatchObject({ name: 'AbortError' })
+    expect(fixture.handshakeCount()).toBe(1)
+    await client.close()
+  })
+
   it('throws a typed error when calling before connect', async () => {
     const client = new McpClient(config())
     await expect(client.callTool('list_employees', {})).rejects.toBeInstanceOf(ProtocolError)
