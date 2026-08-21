@@ -17,6 +17,8 @@ export interface McpFixtureOptions {
   tools?: McpToolFixture[]
   /** Number of requests allowed per session before the server expires it (404). */
   expireAfterRequests?: number
+  /** Overrides the JSON-RPC error returned when an unknown tool is called. */
+  unknownToolError?: { code: number; message: string }
 }
 
 export interface McpFixture {
@@ -25,6 +27,8 @@ export interface McpFixture {
   close(): Promise<void>
   /** Number of initialize handshakes the server has completed. */
   handshakeCount(): number
+  /** The `clientInfo` from the most recent initialize request. */
+  lastClientInfo(): { name?: unknown; version?: unknown } | undefined
 }
 
 const DEFAULT_TOOLS: McpToolFixture[] = [
@@ -45,6 +49,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
   const tools = options.tools ?? DEFAULT_TOOLS
   let sessionCounter = 0
   let handshakes = 0
+  let clientInfo: { name?: unknown; version?: unknown } | undefined
   const sessionRequests = new Map<string, number>()
   const sockets = new Set<Socket>()
 
@@ -104,6 +109,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
 
     if (method === 'initialize') {
       handshakes++
+      clientInfo = msg.params?.clientInfo as { name?: unknown; version?: unknown } | undefined
       const sid = `sess-${++sessionCounter}`
       sessionRequests.set(sid, 0)
       respondSse(res, {
@@ -147,7 +153,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
         respondSse(res, {
           jsonrpc: '2.0',
           id: msg.id,
-          error: { code: -32602, message: `tool '${name}' not found: tool not found` },
+          error: options.unknownToolError ?? { code: -32602, message: `tool '${name}' not found: tool not found` },
         })
         return
       }
@@ -182,6 +188,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
     url: `http://127.0.0.1:${port}`,
     mcpUrl: `http://127.0.0.1:${port}/mcp/`,
     handshakeCount: () => handshakes,
+    lastClientInfo: () => clientInfo,
     close: () => closeTrackedServer(server, sockets),
   }
 }
