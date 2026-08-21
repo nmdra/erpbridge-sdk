@@ -1,6 +1,6 @@
 {
   "name": "@erpbridge/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript client library for the ERPBridge server family — MCP tool calls, REST tool invocation, log aggregation, metrics, cache, and health.",
   "type": "module",
   "license": "MIT",
