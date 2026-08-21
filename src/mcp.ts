@@ -6,7 +6,21 @@ import { INTERNAL_ERROR_CODE } from './errors.js'
 import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
 
 const CLIENT_NAME = '@erpbridge/sdk'
-const CLIENT_VERSION: string = createRequire(import.meta.url)('../package.json').version as string
+
+/**
+ * Advertised in the MCP initialize handshake. Read from package.json so it
+ * stays in sync with releases; falls back rather than failing module load
+ * when the manifest cannot be resolved (e.g. exotic bundling).
+ */
+function resolveClientVersion(): string {
+  try {
+    const pkg = createRequire(import.meta.url)('../package.json') as { version?: unknown }
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+const CLIENT_VERSION = resolveClientVersion()
 export const INVALID_PARAMS_CODE = -32602
 
 /**

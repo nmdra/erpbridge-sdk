@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startMcpFixture, type McpFixture } from '../fixtures/mcp-server.js'
 import type { ErpbridgeConfig, ToolResult } from './types.js'
@@ -32,6 +33,14 @@ describe('McpClient', () => {
       description: 'List employees',
       inputSchema: { type: 'object' },
     })
+    await client.close()
+  })
+
+  it('advertises the installed package version in the handshake', async () => {
+    const client = new McpClient(config())
+    await client.connect()
+    const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
+    expect(fixture.lastClientInfo()).toMatchObject({ name: '@erpbridge/sdk', version })
     await client.close()
   })
 
