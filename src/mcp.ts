@@ -35,6 +35,7 @@ export class McpClient {
       await client.connect(transport)
     } catch (error) {
       await transport.close().catch(() => {})
+      await client.close().catch(() => {})
       throw new ProtocolError(
         `failed to connect to ${this.config.mcpUrl}: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error, code: INTERNAL_ERROR_CODE },
@@ -143,7 +144,9 @@ function isUnknownToolError(message: string, toolName: string, code: number): bo
 }
 
 function isProtocolAnswer(error: unknown): boolean {
-  return error instanceof ErpbridgeError || error instanceof McpProtocolError
+  if (error instanceof ErpbridgeError || error instanceof McpProtocolError) return true
+  if (error instanceof Error && error.name === 'AbortError') return true
+  return false
 }
 
 function toProtocolError(error: unknown): ProtocolError {
