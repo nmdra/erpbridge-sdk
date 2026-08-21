@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startFixtureServer, type FixtureServer } from '../fixtures/http-server.js'
 import type { ErpbridgeConfig } from './types.js'
-import { ProtocolError, ServerError } from './types.js'
+import { ClientError, ProtocolError, ServerError } from './types.js'
 import { createSystemApi } from './system.js'
 
 let fixture: FixtureServer
@@ -107,8 +107,9 @@ describe('createSystemApi', () => {
 
   it('cache.flush() without a target passes through the server 400', async () => {
     const api = createSystemApi(config())
+    await expect(api.cache.flush()).rejects.toBeInstanceOf(ClientError)
     await expect(api.cache.flush()).rejects.toMatchObject({
-      name: 'ServerError',
+      name: 'ClientError',
       status: 400,
       message: 'missing tool, module or all parameter',
     })

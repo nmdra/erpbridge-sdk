@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   AuthenticationError,
+  ClientError,
   ErpbridgeError,
   NotFoundError,
   ProtocolError,
@@ -22,6 +23,7 @@ describe('error class hierarchy (D7)', () => {
       new AuthenticationError('unauthorized'),
       new NotFoundError('missing'),
       new RateLimitError('slow down'),
+      new ClientError('bad request', { status: 400 }),
       new ServerError('boom', { status: 500 }),
       new ProtocolError('bad jsonrpc', { code: -32601 }),
     ]
@@ -35,6 +37,7 @@ describe('error class hierarchy (D7)', () => {
     expect(new AuthenticationError('x').name).toBe('AuthenticationError')
     expect(new NotFoundError('x').name).toBe('NotFoundError')
     expect(new RateLimitError('x').name).toBe('RateLimitError')
+    expect(new ClientError('x', { status: 400 }).name).toBe('ClientError')
     expect(new ServerError('x', { status: 503 }).name).toBe('ServerError')
     expect(new ProtocolError('x', { code: -32000 }).name).toBe('ProtocolError')
     expect(new ErpbridgeError('x').name).toBe('ErpbridgeError')

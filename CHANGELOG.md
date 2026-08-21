@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 ## [Unreleased]
 
+### Added
+
+- `ClientError` — typed HTTP 4xx (other than 401/404/429): the new `ErpbridgeError` subclass for bad requests and admission failures.
+
+### Changed
+
+- `request()` now maps non-401/404/429 HTTP 4xx (including 400 and the registry 422 admission error) to `ClientError`; 5xx remain `ServerError`, so `registry.apply()` admission failures now surface as `ClientError` instead of `ServerError`.
+
 ### Removed
 
 - Dropped the TypeDoc API-reference site and its Pages deploy workflow (typedoc cannot run on TypeScript 7); the hand-written SDK docs in the erpbridge-docs site remain the single source of truth.

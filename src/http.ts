@@ -1,5 +1,5 @@
 import type { ErpbridgeConfig } from './types.js'
-import { AuthenticationError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
+import { AuthenticationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
 
 /** A request against the ERPBridge server. */
 export interface HttpRequest {
@@ -104,6 +104,9 @@ function mapHttpError(res: Response, body: unknown): ErpbridgeError {
       body,
       retryAfter: res.headers.get('retry-after') ?? undefined,
     })
+  }
+  if (status >= 400 && status < 500) {
+    return new ClientError(message, { status, body })
   }
   return new ServerError(message, { status, body })
 }

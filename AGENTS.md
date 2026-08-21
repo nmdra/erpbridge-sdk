@@ -56,6 +56,6 @@ Rules for agents making changes to this repository.
 - Tool names on the wire are bare (`list_employees`), not `erp.`-prefixed — the proxy keys on exact registered names. Do not add prefix normalization without extending the plan.
 - Public API ships dual ESM + CJS built with **tsdown** (`format: ['esm','cjs']`, `fixedExtension` → `.mjs`/`.cjs` + `.d.mts`/`.d.cts`). Keep the `exports` map in `package.json` in sync with `src/index.ts`; subpaths `./client`, `./rest`, `./types` mirror their source files. Named exports only — no `export default`.
 - `@modelcontextprotocol/*` stays an external runtime dependency (never bundled into `dist/`).
-- Errors are typed: always throw/forward the class hierarchy from `src/types.ts` (`ErpbridgeError` → `AuthenticationError` / `NotFoundError` / `RateLimitError` / `ServerError` / `ProtocolError`; future auth adds `AuthorizationError`), never raw `Error` with string-matching.
+- Errors are typed: always throw/forward the class hierarchy from `src/types.ts` (`ErpbridgeError` → `AuthenticationError` / `NotFoundError` / `RateLimitError` / `ClientError` (4xx) / `ServerError` (5xx) / `ProtocolError`; future auth adds `AuthorizationError`), never raw `Error` with string-matching.
 - SSE parsing lives in one module and stays dependency-free; the server format is `data: <json>\n\n`.
 - Node >= 20 — use built-in `fetch`, `AbortSignal`, and `AsyncIterable` rather than adding runtime dependencies.

@@ -299,6 +299,9 @@ export class NotFoundError extends ErpbridgeError {}
 /** The server rate-limited the request (HTTP 429). */
 export class RateLimitError extends ErpbridgeError {}
 
+/** The request was rejected as malformed (HTTP 4xx other than 401/404/429). */
+export class ClientError extends ErpbridgeError {}
+
 /** The server failed to fulfil the request (HTTP 5xx). */
 export class ServerError extends ErpbridgeError {}
 

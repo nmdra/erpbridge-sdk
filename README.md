@@ -66,7 +66,8 @@ ErpbridgeError
 ├── AuthenticationError  (server rejected the request as unauthenticated)
 ├── NotFoundError        (unknown tool or resource)
 ├── RateLimitError       (HTTP 429, with retryAfter)
-├── ServerError          (HTTP 4xx/5xx with status and body)
+├── ClientError          (HTTP 4xx with status and body)
+├── ServerError          (HTTP 5xx with status and body)
 └── ProtocolError        (protocol or session failure, with numeric code)
 ```
 

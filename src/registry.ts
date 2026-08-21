@@ -29,7 +29,7 @@ export interface RegistryApi {
    *
    * The server validates the definition through its admission controller
    * and rejects violations with HTTP 422, surfaced as a typed
-   * {@link ServerError}.
+   * {@link ClientError}.
    */
   apply(def: RegistryTool): Promise<ToolApplyResult>
   /**

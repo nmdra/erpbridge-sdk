@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startFixtureServer, type FixtureServer } from '../fixtures/http-server.js'
 import { createRegistryApi } from './registry.js'
 import type { ErpbridgeConfig, RegistryTool, ToolApplyResult } from './types.js'
-import { NotFoundError, ProtocolError, ServerError } from './types.js'
+import { ClientError, NotFoundError, ProtocolError, ServerError } from './types.js'
 
 let fixture: FixtureServer
 
@@ -94,7 +94,7 @@ describe('registry', () => {
     expect(await api.apply(sampleTool)).toEqual(expected)
   })
 
-  it('registry.apply() maps the 422 admission error to ServerError', async () => {
+  it('registry.apply() maps the 422 admission error to ClientError', async () => {
     const scoped = await startFixtureServer([
       {
         method: 'POST',
@@ -106,10 +106,10 @@ describe('registry', () => {
     try {
       const api = createRegistryApi({ ...config(), baseUrl: scoped.url })
       await expect(api.apply({ ...sampleTool, metadata: { ...sampleTool.metadata, name: '' } })).rejects.toBeInstanceOf(
-        ServerError,
+        ClientError,
       )
       await expect(api.apply({ ...sampleTool, metadata: { ...sampleTool.metadata, name: '' } })).rejects.toMatchObject({
-        name: 'ServerError',
+        name: 'ClientError',
         status: 422,
         message: 'invalid tool: metadata.name is required',
       })

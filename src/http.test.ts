@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { IncomingMessage } from 'node:http'
 import { startFixtureServer, type FixtureServer, type Route } from '../fixtures/http-server.js'
-import { AuthenticationError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
+import { AuthenticationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
 import { request, requestStream, type HttpResponse } from './http.js'
 
 let fixture: FixtureServer
 
 const routes: Route[] = [
+  { method: 'GET', path: '/api/bad-request', status: 400, body: { error: 'bad request' } },
+  { method: 'GET', path: '/api/admission', status: 422, body: 'invalid tool: metadata.name is required\n' },
   { method: 'GET', path: '/api/ok', body: { ok: true } },
   { method: 'GET', path: '/api/not-found', status: 404, body: { error: 'no such tool' } },
   { method: 'GET', path: '/api/server-error', status: 500, body: { message: 'cache not enabled' } },
@@ -70,6 +72,23 @@ describe('request', () => {
       name: 'RateLimitError',
       retryAfter: '30',
     })
+  })
+
+  it('maps 400 to ClientError with status and body', async () => {
+    await expect(request(cfg(), { method: 'GET', path: '/api/bad-request' })).rejects.toMatchObject({
+      name: 'ClientError',
+      status: 400,
+      body: { error: 'bad request' },
+    })
+    await expect(request(cfg(), { method: 'GET', path: '/api/bad-request' })).rejects.toBeInstanceOf(ClientError)
+  })
+
+  it('maps 422 to ClientError with the admission message', async () => {
+    await expect(request(cfg(), { method: 'GET', path: '/api/admission' })).rejects.toMatchObject({
+      name: 'ClientError',
+      status: 422,
+    })
+    await expect(request(cfg(), { method: 'GET', path: '/api/admission' })).rejects.toBeInstanceOf(ClientError)
   })
 
   it('maps 5xx to ServerError with status and body', async () => {
