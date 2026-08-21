@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
 
+## [0.1.2](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.1...sdk-v0.1.2) (2026-08-21)
+
+
+### Bug Fixes
+
+* **mcp:** support browser-compatible MCP bundles ([9141f83](https://github.com/nmdra/erpbridge-sdk/commit/9141f83d6ff16af5971c310dace8fef11310d737))
+
 ## [0.1.1](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.0...sdk-v0.1.1) (2026-08-21)
 
 
