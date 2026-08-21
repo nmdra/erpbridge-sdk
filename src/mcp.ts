@@ -71,7 +71,7 @@ export class McpClient {
         const res = await this.requireClient().callTool({ name, arguments: args })
         return { result: mapContent(res.content), isError: res.isError ?? false }
       } catch (error) {
-        throw mapMcpError(error)
+        throw mapMcpError(error, name)
       }
     })
   }
@@ -125,17 +125,20 @@ export class McpClient {
   }
 }
 
-function mapMcpError(error: unknown): unknown {
+function mapMcpError(error: unknown, toolName?: string): unknown {
   if (error instanceof McpProtocolError || (error instanceof Error && typeof (error as { code?: unknown }).code === 'number')) {
     const code = (error as { code?: number }).code ?? INTERNAL_ERROR_CODE
     const message = error instanceof Error ? error.message : String(error)
-    if (code === INVALID_PARAMS_CODE && message.includes('not found')) {
-      // mcp-go's registered-tool miss: INVALID_PARAMS (-32602) + "tool '<name>' not found: tool not found".
+    if (toolName !== undefined && isUnknownToolError(message, toolName, code)) {
       return new NotFoundError(message, { cause: error instanceof Error ? error : undefined })
     }
     return new ProtocolError(message, { cause: error instanceof Error ? error : undefined, code })
   }
   return error
+}
+
+function isUnknownToolError(message: string, toolName: string, code: number): boolean {
+  return code === INVALID_PARAMS_CODE && message.includes(`tool '${toolName}' not found`)
 }
 
 function isProtocolAnswer(error: unknown): boolean {

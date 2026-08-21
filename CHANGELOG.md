@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 - `request()` now maps non-401/404/429 HTTP 4xx (including 400 and the registry 422 admission error) to `ClientError`; 5xx remain `ServerError`, so `registry.apply()` admission failures now surface as `ClientError` instead of `ServerError`.
 
+### Fixed
+
+- MCP unknown-tool errors now require the exact tool name (`tool '<name>' not found`) before mapping to `NotFoundError`; a message mentioning a different tool no longer mis-classifies.
+
 ### Removed
 
 - Dropped the TypeDoc API-reference site and its Pages deploy workflow (typedoc cannot run on TypeScript 7); the hand-written SDK docs in the erpbridge-docs site remain the single source of truth.
