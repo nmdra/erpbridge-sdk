@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '0 3 * * *'
 
 permissions:
   contents: read
@@ -60,8 +62,8 @@ jobs:
       - name: Pack dry-run
         run: npm pack --dry-run --json
 
-  osv-scan:
-    name: vulnerability scan (OSV)
+  osv-scan-pr:
+    name: vulnerability scan (OSV, PR)
     if: github.event_name == 'pull_request'
     permissions:
       actions: read
@@ -71,4 +73,21 @@ jobs:
     # merge ref, compares against the base, and uploads SARIF to code scanning.
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67
     with:
+      fail-on-vuln: true
+
+  osv-scan-scheduled:
+    name: vulnerability scan (OSV, scheduled)
+    if: github.event_name == 'schedule'
+    permissions:
+      actions: read
+      security-events: write
+      contents: read
+    # google/osv-scanner-action v2.5.1 — reusable workflow that scans the tree
+    # (-r ./) and uploads SARIF; runs on the nightly schedule so the union feed
+    # (audit + osv) is checked daily, not just on PRs (D15).
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67
+    with:
+      scan-args: |-
+        -r
+        ./
       fail-on-vuln: true
