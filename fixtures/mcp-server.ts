@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import type { IncomingMessage, Server } from 'node:http'
+import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Socket } from 'node:net'
 import { closeTrackedServer, readBody, respondJson, trackRequestSocket } from './helpers.js'
@@ -193,7 +193,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
   }
 }
 
-function respondSse(res: import('node:http').ServerResponse, payload: unknown, headers: Record<string, string> = {}): void {
+function respondSse(res: ServerResponse, payload: unknown, headers: Record<string, string> = {}): void {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', ...headers })
   res.end(`data: ${JSON.stringify(payload)}\n\n`)
 }

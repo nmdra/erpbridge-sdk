@@ -27,9 +27,15 @@ interface FamilyContext {
 }
 
 type FamilyType = MetricFamily['type']
-const SUPPORTED_TYPES: ReadonlySet<FamilyType> = new Set(['counter', 'gauge', 'histogram'])
 function isSupportedType(type: string): type is FamilyType {
-  return (SUPPORTED_TYPES as ReadonlySet<string>).has(type)
+  switch (type) {
+    case 'counter':
+    case 'gauge':
+    case 'histogram':
+      return true
+    default:
+      return false
+  }
 }
 
 /**
