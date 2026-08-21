@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file. See [Keep a
 ### Fixed
 
 - MCP unknown-tool errors now require the exact tool name (`tool '<name>' not found`) before mapping to `NotFoundError`; a message mentioning a different tool no longer mis-classifies.
+- MCP client-info version now reads from `package.json` at runtime, so the advertised version stays in sync with releases (previously hard-coded in two places).
 
 ### Removed
 

@@ -28,7 +28,7 @@ export function createToolsProxy(mcp: McpClient): Record<string, ToolFunction> {
     return discovered
   }
 
-  const handle = (name: string): ToolFunction => {
+  const proxyFor = (name: string): ToolFunction => {
     const fn = (async (args?: ToolCallArguments): Promise<ToolResult> => {
       const byName = await ensureDiscovered()
       const def = byName.get(name)
@@ -42,7 +42,7 @@ export function createToolsProxy(mcp: McpClient): Record<string, ToolFunction> {
     }) as ToolFunction
     return new Proxy(fn, {
       get(target, prop, receiver) {
-        if (typeof prop === 'string') return handle(`${name}.${prop}`)
+        if (typeof prop === 'string') return proxyFor(`${name}.${prop}`)
         return Reflect.get(target, prop, receiver)
       },
     })
@@ -50,7 +50,7 @@ export function createToolsProxy(mcp: McpClient): Record<string, ToolFunction> {
 
   return new Proxy({} as Record<string, ToolFunction>, {
     get(_target, prop, receiver) {
-      if (typeof prop === 'string') return handle(prop)
+      if (typeof prop === 'string') return proxyFor(prop)
       return Reflect.get(_target, prop, receiver)
     },
   })

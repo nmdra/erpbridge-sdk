@@ -1,11 +1,12 @@
 import { Client, ProtocolError as McpProtocolError, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import type { ContentBlock } from '@modelcontextprotocol/client'
 import type { ErpbridgeConfig, ToolCallArguments, ToolDefinition, ToolResult } from './types.js'
+import { createRequire } from 'node:module'
 import { INTERNAL_ERROR_CODE } from './errors.js'
 import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
 
 const CLIENT_NAME = '@erpbridge/sdk'
-const CLIENT_VERSION = '0.1.0'
+const CLIENT_VERSION: string = createRequire(import.meta.url)('../package.json').version as string
 export const INVALID_PARAMS_CODE = -32602
 
 /**
@@ -45,7 +46,7 @@ export class McpClient {
 
   /** List the tools the server currently exposes. */
   async listTools(): Promise<ToolDefinition[]> {
-    return this.run(async () => {
+    return this.execute(async () => {
       try {
         const res = await this.requireClient().listTools()
         return res.tools.map((t) => ({
@@ -66,7 +67,7 @@ export class McpClient {
    * as JSON when it parses, otherwise as the raw string.
    */
   async callTool(name: string, args: ToolCallArguments): Promise<ToolResult> {
-    return this.run(async () => {
+    return this.execute(async () => {
       try {
         const res = await this.requireClient().callTool({ name, arguments: args })
         return { result: mapContent(res.content), isError: res.isError ?? false }
@@ -99,7 +100,7 @@ export class McpClient {
    * retry once. Protocol answers (typed errors) are never retried. A second
    * transport failure throws {@link ProtocolError} (R2).
    */
-  private async run<T>(op: () => Promise<T>): Promise<T> {
+  private async execute<T>(op: () => Promise<T>): Promise<T> {
     let retried = false
     for (;;) {
       try {
