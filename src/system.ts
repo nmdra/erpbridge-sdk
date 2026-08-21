@@ -1,8 +1,6 @@
+import { protocolError } from './errors.js'
 import { request } from './http.js'
 import type { CacheStats, ErpbridgeConfig } from './types.js'
-import { ProtocolError } from './types.js'
-
-const INTERNAL_ERROR_CODE = -32000
 
 /** The server's health response (`GET /mcp/health`). */
 export interface HealthStatus {
@@ -47,9 +45,7 @@ export function createSystemApi(config: ErpbridgeConfig): SystemApi {
     async health(): Promise<HealthStatus> {
       const res = await request<unknown>(config, { path: '/mcp/health' })
       if (res.body === null || typeof res.body !== 'object' || typeof (res.body as HealthStatus).status !== 'string') {
-        throw new ProtocolError('invalid response from /mcp/health: expected an object with a string status', {
-          code: INTERNAL_ERROR_CODE,
-        })
+        throw protocolError('invalid response from /mcp/health: expected an object with a string status')
       }
       return res.body as HealthStatus
     },
@@ -59,9 +55,7 @@ export function createSystemApi(config: ErpbridgeConfig): SystemApi {
         const res = await request<unknown>(config, { path: '/api/cache/stats' })
         const stats = (res.body as { stats?: unknown } | null)?.stats
         if (typeof stats !== 'object' || stats === null || Array.isArray(stats)) {
-          throw new ProtocolError('invalid response from /api/cache/stats: missing stats envelope', {
-            code: INTERNAL_ERROR_CODE,
-          })
+          throw protocolError('invalid response from /api/cache/stats: missing stats envelope')
         }
         return stats as CacheStats
       },
@@ -74,9 +68,7 @@ export function createSystemApi(config: ErpbridgeConfig): SystemApi {
         const res = await request<unknown>(config, { path: '/api/cache/flush', query })
         const body = res.body as CacheFlushResult | null
         if (body === null || typeof body !== 'object' || typeof body.deleted !== 'number' || typeof body.status !== 'string') {
-          throw new ProtocolError('invalid response from /api/cache/flush: expected { deleted, status }', {
-            code: INTERNAL_ERROR_CODE,
-          })
+          throw protocolError('invalid response from /api/cache/flush: expected { deleted, status }')
         }
         return body
       },

@@ -1,11 +1,11 @@
 import { Client, ProtocolError as McpProtocolError, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import type { ContentBlock } from '@modelcontextprotocol/client'
 import type { ErpbridgeConfig, ToolCallArguments, ToolDefinition, ToolResult } from './types.js'
+import { INTERNAL_ERROR_CODE } from './errors.js'
 import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
 
 const CLIENT_NAME = '@erpbridge/sdk'
 const CLIENT_VERSION = '0.1.0'
-const INTERNAL_ERROR_CODE = -32000
 export const INVALID_PARAMS_CODE = -32602
 
 /**

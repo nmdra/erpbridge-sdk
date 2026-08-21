@@ -1,3 +1,4 @@
+import { protocolError } from './errors.js'
 import { request } from './http.js'
 import type {
   ErpbridgeConfig,
@@ -7,11 +8,9 @@ import type {
   ToolCallArguments,
   ToolResult,
 } from './types.js'
-import { ProtocolError } from './types.js'
 
 const REGISTRY_PATH = '/apis/erpbridge.io/v1/tools'
 const INVOKE_PATH = '/api/tools/invoke'
-const INTERNAL_ERROR_CODE = -32000
 
 /**
  * The tool registry and direct invoke surface (D4).
@@ -53,9 +52,7 @@ export function createRegistryApi(config: ErpbridgeConfig): RegistryApi {
     async list(): Promise<RegistryTool[]> {
       const res = await request<unknown>(config, { path: REGISTRY_PATH })
       if (!Array.isArray(res.body)) {
-        throw new ProtocolError(`invalid response from ${REGISTRY_PATH}: expected an array`, {
-          code: INTERNAL_ERROR_CODE,
-        })
+        throw protocolError(`invalid response from ${REGISTRY_PATH}: expected an array`)
       }
       return res.body as RegistryTool[]
     },
@@ -71,9 +68,7 @@ export function createRegistryApi(config: ErpbridgeConfig): RegistryApi {
         typeof body.name !== 'string' ||
         typeof body.version !== 'string'
       ) {
-        throw new ProtocolError(`invalid response from ${REGISTRY_PATH}: expected 201 { status, name, version }`, {
-          code: INTERNAL_ERROR_CODE,
-        })
+        throw protocolError(`invalid response from ${REGISTRY_PATH}: expected 201 { status, name, version }`)
       }
       return body as ToolApplyResult
     },
@@ -88,9 +83,7 @@ export function createRegistryApi(config: ErpbridgeConfig): RegistryApi {
       const res = await request<unknown>(config, { method: 'POST', path: INVOKE_PATH, body: { name, arguments: args } })
       const body = res.body as ToolResult | null
       if (body === null || typeof body !== 'object' || !('result' in body)) {
-        throw new ProtocolError(`invalid response from ${INVOKE_PATH}: expected { result }`, {
-          code: INTERNAL_ERROR_CODE,
-        })
+        throw protocolError(`invalid response from ${INVOKE_PATH}: expected { result }`)
       }
       return body
     },

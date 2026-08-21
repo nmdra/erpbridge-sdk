@@ -1,10 +1,9 @@
+import { INTERNAL_ERROR_CODE, protocolError } from './errors.js'
 import { request, requestStream } from './http.js'
 import type { ErpbridgeConfig, LogRecord } from './types.js'
-import { ProtocolError } from './types.js'
 import { parseSse } from './sse.js'
 
 const DEFAULT_RECONNECT_DELAY_MS = 250
-const INTERNAL_ERROR_CODE = -32000
 
 /** Options for {@link LogsApi.stream}. */
 export interface LogStreamOptions {
@@ -32,9 +31,7 @@ export function createLogsApi(config: ErpbridgeConfig): LogsApi {
     async recent(): Promise<LogRecord[]> {
       const res = await request<unknown>(config, { path: '/api/logs/recent' })
       if (!Array.isArray(res.body)) {
-        throw new ProtocolError('invalid response from /api/logs/recent: expected an array of log records', {
-          code: INTERNAL_ERROR_CODE,
-        })
+        throw protocolError('invalid response from /api/logs/recent: expected an array of log records')
       }
       return res.body as LogRecord[]
     },
@@ -66,7 +63,7 @@ export function createLogsApi(config: ErpbridgeConfig): LogsApi {
               try {
                 const res = await requestStream(config, { path: '/api/logs/stream', noTimeout: true, signal: combined })
                 if (res.body === null) {
-                  throw new ProtocolError('empty SSE response body from /api/logs/stream', { code: INTERNAL_ERROR_CODE })
+                  throw protocolError('empty SSE response body from /api/logs/stream')
                 }
                 for await (const payload of parseSse(res.body)) {
                   if (aborted()) return
