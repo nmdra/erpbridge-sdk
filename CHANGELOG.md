@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
 
+## [0.1.1](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.0...sdk-v0.1.1) (2026-08-21)
+
+
+### Bug Fixes
+
+* add ClientError for 4xx and route 4xx/5xx correctly ([2a77576](https://github.com/nmdra/erpbridge-sdk/commit/2a775761fe5330cc11666476cf2df50cda056d9b))
+* avoid reconnect on abort and close client on connect failure ([90d07ae](https://github.com/nmdra/erpbridge-sdk/commit/90d07ae82bdb6f9ba015794e163a4ef0f85708ea))
+* read MCP client version from package.json and use clearer internal names ([17979e5](https://github.com/nmdra/erpbridge-sdk/commit/17979e57bb563c074533e2e17e266fa57832ceb4))
+* require the exact tool name before mapping unknown-tool to NotFoundError ([dd08f44](https://github.com/nmdra/erpbridge-sdk/commit/dd08f44c947c333e9f344421d3950881be433205))
+* resolve the MCP client version defensively and test the handshake ([496389f](https://github.com/nmdra/erpbridge-sdk/commit/496389f3c600826db76fd1ece2404fc138da8d94))
+
 ## [Unreleased]
 
 ### Added
