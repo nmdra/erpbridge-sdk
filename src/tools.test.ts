@@ -33,7 +33,10 @@ describe('createToolsProxy', () => {
     const { client, tools } = await connected()
     try {
       const result = await tools.list_employees!({ limit: 10 })
-      expect(result).toEqual({ result: { ok: true, tool: 'list_employees', args: { limit: 10 } }, isError: false })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '{"ok":true,"tool":"list_employees","args":{"limit":10}}' }],
+        isError: false,
+      })
     } finally {
       await client.close()
     }
@@ -72,7 +75,10 @@ describe('createToolsProxy', () => {
       })
 
       const ok = await tools.create_employee!({ name: 'Ada' })
-      expect(ok).toEqual({ result: { ok: true, tool: 'create_employee', args: { name: 'Ada' } }, isError: false })
+      expect(ok).toEqual({
+        content: [{ type: 'text', text: '{"ok":true,"tool":"create_employee","args":{"name":"Ada"}}' }],
+        isError: false,
+      })
       await client.close()
     } finally {
       await scoped.close()
@@ -111,6 +117,22 @@ describe('createToolsProxy', () => {
       expect(result).toMatchObject({ isError: false })
     } finally {
       await client.close()
+    }
+  })
+
+  it('passes an MCP role selector as an ordinary tool argument', async () => {
+    const scoped = await startMcpFixture({
+      tools: [{ name: 'guarded_tool', inputSchema: { type: 'object', properties: { role: { type: 'string' } } } }],
+    })
+    try {
+      const client = new McpClient({ ...config(), mcpUrl: scoped.mcpUrl })
+      await client.connect()
+      const tools = createToolsProxy(client)
+      const result = await tools.guarded_tool!({ role: 'hr-reader' })
+      expect(result.content).toContainEqual({ type: 'text', text: '{"ok":true,"tool":"guarded_tool","args":{"role":"hr-reader"}}' })
+      await client.close()
+    } finally {
+      await scoped.close()
     }
   })
 })

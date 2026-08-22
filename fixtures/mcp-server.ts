@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Socket } from 'node:net'
-import { closeTrackedServer, readBody, respondJson, trackRequestSocket } from './helpers.js'
+import { closeTrackedServer, readBody, respond, respondJson, trackRequestSocket } from './helpers.js'
 
 /** A tool the fixture exposes over MCP. */
 export interface McpToolFixture {
@@ -11,6 +11,8 @@ export interface McpToolFixture {
   inputSchema?: Record<string, unknown>
   /** When set, calling this tool returns an execution failure (`isError: true`). */
   failWith?: string
+  /** Complete MCP CallToolResult override for envelope-preservation tests. */
+  result?: unknown
 }
 
 export interface McpFixtureOptions {
@@ -19,6 +21,10 @@ export interface McpFixtureOptions {
   expireAfterRequests?: number
   /** Overrides the JSON-RPC error returned when an unknown tool is called. */
   unknownToolError?: { code: number; message: string }
+  /** Return an HTTP auth failure for one MCP request method. */
+  reject?: { method: string; status: 401 | 403; headers?: Record<string, string>; body?: unknown }
+  /** Delay an initialize rejection until this many handshakes have completed. */
+  rejectAfterHandshakes?: number
 }
 
 export interface McpFixture {
@@ -29,6 +35,8 @@ export interface McpFixture {
   handshakeCount(): number
   /** The `clientInfo` from the most recent initialize request. */
   lastClientInfo(): { name?: unknown; version?: unknown } | undefined
+  /** Authorization values observed on MCP requests, for injection assertions. */
+  authorizationHeaders(): Array<string | undefined>
 }
 
 const DEFAULT_TOOLS: McpToolFixture[] = [
@@ -52,9 +60,11 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
   let clientInfo: { name?: unknown; version?: unknown } | undefined
   const sessionRequests = new Map<string, number>()
   const sockets = new Set<Socket>()
+  const authorizationHeaders: Array<string | undefined> = []
 
   const server: Server = createServer(async (req, res) => {
     trackRequestSocket(req, res, sockets)
+    authorizationHeaders.push(req.headers.authorization)
 
     const url = new URL(req.url ?? '/', 'http://localhost')
 
@@ -64,6 +74,10 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
     }
 
     if (req.method === 'GET' && url.pathname === '/mcp/') {
+      if (options.reject?.method === 'GET') {
+        respond(res, options.reject.status, { 'Content-Type': 'application/json', ...options.reject.headers }, JSON.stringify(options.reject.body ?? { error: 'authorization failed' }))
+        return
+      }
       // Long-lived SSE notification stream; stays open until the client leaves.
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -105,6 +119,15 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
         }
         sessionRequests.set(sessionId, count)
       }
+    }
+
+    const rejection = options.reject
+    const rejectionReady =
+      rejection?.method === method &&
+      (method !== 'initialize' || options.rejectAfterHandshakes === undefined || handshakes >= options.rejectAfterHandshakes)
+    if (rejectionReady) {
+      respond(res, rejection.status, { 'Content-Type': 'application/json', ...rejection.headers }, JSON.stringify(rejection.body ?? { error: 'authorization failed' }))
+      return
     }
 
     if (method === 'initialize') {
@@ -165,6 +188,10 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
         })
         return
       }
+      if (tool.result !== undefined) {
+        respondSse(res, { jsonrpc: '2.0', id: msg.id, result: tool.result })
+        return
+      }
       const resultJSON = JSON.stringify({ ok: true, tool: tool.name, args: params.arguments ?? {} })
       respondSse(res, {
         jsonrpc: '2.0',
@@ -189,6 +216,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
     mcpUrl: `http://127.0.0.1:${port}/mcp/`,
     handshakeCount: () => handshakes,
     lastClientInfo: () => clientInfo,
+    authorizationHeaders: () => [...authorizationHeaders],
     close: () => closeTrackedServer(server, sockets),
   }
 }

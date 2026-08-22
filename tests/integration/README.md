@@ -51,11 +51,26 @@ npm run test:integration   # all tests report "skipped"
 `integration.test.ts` — happy paths: health, MCP connect/list/call, the
 `tools.<name>` proxy on a seeded tool, REST invoke, logs (recent + stream with
 clean abort), metrics (raw text + parsed counter/histogram families), cache
-stats, and a full registry apply/list/delete round-trip.
+stats (Redis or memory mode), and a full registry apply/list/delete round-trip.
 
 `integration-errors.test.ts` — error paths: unknown tool over MCP and REST
 (NotFoundError), the tools proxy on an unknown name, and cache flush when the
 cache is disabled.
+
+`auth.test.ts` — opt-in v0.3.0-alpha.1 authentication coverage: scoped MCP,
+metrics, and logs credentials; admin registry filters, cache stats, and direct
+invoke; typed 401/403 mapping; the MCP result envelope; and optional guarded
+tool calls. It is skipped unless all of these externally provisioned variables
+are present: `ERPBridge_TEST_SERVER`, `ERPBridge_TEST_ADMIN_TOKEN`,
+`ERPBridge_TEST_MCP_TOKEN`, `ERPBridge_TEST_METRICS_TOKEN`, and
+`ERPBridge_TEST_LOGS_TOKEN`. Role tests additionally require
+`ERPBridge_TEST_GUARDED_TOOL`, `ERPBridge_TEST_ROLE`, and optionally
+`ERPBridge_TEST_GUARDED_ARGUMENTS_JSON` (defaults to `{}`).
+
+Provision scoped tokens with the ERPBridge server's token tooling before the
+run. The SDK test suite never creates, logs, stores, or reveals token values.
+The admin token must have access to the seeded `ERPBridge_TEST_TOOL_NAME`
+(default `list_employees`) and the server must have authentication enabled.
 
 ## Findings recorded at T13 time
 
@@ -71,13 +86,14 @@ cache is disabled.
   `invoke("system.progress_test")` 404s. REST invoke tests use the seeded
   `list_employees` tool instead.
 - The live server **double-wraps tool text results**: `mcp.callTool` content is
-  text that parses as `{"content":[{"type":"text","text":"..."}]}` (the handler
-  chain JSON-marshals the tool result and wraps it in a new text block). The
-  SDK maps it faithfully; MCP-call assertions therefore check
-  `JSON.stringify(result.result)` rather than a plain string.
-- `cache.flush()` 503 is only assertable when the server runs **without**
-  Redis. The Compose stack always provides Redis, so that assertion is
-  conditionally skipped when `cache.stats()` succeeds.
+  a text block whose text parses as `{"content":[{"type":"text","text":"..."}]}`
+  (the handler chain JSON-marshals the tool result and wraps it in a new text
+  block). The SDK maps the MCP envelope faithfully; MCP-call assertions inspect
+  `JSON.stringify(result.content)` rather than a flattened `result` field.
+- A successful cache stats response is valid in both Redis and memory mode;
+  memory mode reports an empty `redisMemory`. The 503 assertion is retained
+  only for a genuinely unavailable cache and is conditionally skipped when
+  `cache.stats()` succeeds.
 - The registry round-trip applies a probe tool (`sdk_integration_probe`) and
   hard-deletes it in a `finally` block, so the registry is left clean.
 - `make generate-tools` fails on `schemas/erp/generated.yaml` (the CLI cannot

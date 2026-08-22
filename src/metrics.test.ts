@@ -32,6 +32,12 @@ describe('createMetricsApi', () => {
     expect(body).toContain('# TYPE mcp_tool_invocations_total counter')
   })
 
+  it('uses the metrics surface credential', async () => {
+    const api = createMetricsApi({ ...config(), auth: { metrics: { token: 'sdk-metrics-fixture-token' } } })
+    await api.text()
+    expect(fixture.authorizationHeaders()).toEqual(['Bearer sdk-metrics-fixture-token'])
+  })
+
   it('parsed() returns counters, gauges, and histograms from the fixture', async () => {
     const api = createMetricsApi(config())
     const { families } = await api.parsed()

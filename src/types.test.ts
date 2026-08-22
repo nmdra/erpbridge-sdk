@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   AuthenticationError,
+  AuthorizationError,
   ClientError,
   ErpbridgeError,
   NotFoundError,
@@ -8,19 +9,23 @@ import {
   RateLimitError,
   ServerError,
   type CacheStats,
+  type AuthScope,
   type ErpbridgeConfig,
   type LogRecord,
   type MetricFamily,
   type MetricSample,
+  type McpToolResult,
   type ToolCallArguments,
   type ToolDefinition,
   type ToolResult,
+  type SurfaceAuth,
 } from './types.js'
 
 describe('error class hierarchy (D7)', () => {
   it('every typed error is an ErpbridgeError and an Error', () => {
     const errors = [
       new AuthenticationError('unauthorized'),
+      new AuthorizationError('forbidden', { status: 403, requiredScope: 'mcp' }),
       new NotFoundError('missing'),
       new RateLimitError('slow down'),
       new ClientError('bad request', { status: 400 }),
@@ -35,6 +40,7 @@ describe('error class hierarchy (D7)', () => {
 
   it('sets the concrete class name on each error', () => {
     expect(new AuthenticationError('x').name).toBe('AuthenticationError')
+    expect(new AuthorizationError('x', { status: 403 }).name).toBe('AuthorizationError')
     expect(new NotFoundError('x').name).toBe('NotFoundError')
     expect(new RateLimitError('x').name).toBe('RateLimitError')
     expect(new ClientError('x', { status: 400 }).name).toBe('ClientError')
@@ -64,6 +70,13 @@ describe('error class hierarchy (D7)', () => {
   it('attaches the WWW-Authenticate hint to AuthenticationError', () => {
     const error = new AuthenticationError('unauthorized', { hint: 'Bearer realm="erpbridge"' })
     expect(error.hint).toBe('Bearer realm="erpbridge"')
+    expect(error.wwwAuthenticate).toBe('Bearer realm="erpbridge"')
+  })
+
+  it('exposes the authorization status and required scope', () => {
+    const error = new AuthorizationError('forbidden', { status: 403, requiredScope: 'mcp' })
+    expect(error.status).toBe(403)
+    expect(error.requiredScope).toBe('mcp')
   })
 
   it('attaches Retry-After to RateLimitError', () => {
@@ -78,7 +91,7 @@ describe('error class hierarchy (D7)', () => {
 })
 
 describe('config and data types', () => {
-  it('ErpbridgeConfig declares the v1 surface with inert auth fields', () => {
+  it('ErpbridgeConfig declares global and per-surface auth fields', () => {
     expectTypeOf<ErpbridgeConfig>().toMatchTypeOf<{
       baseUrl: string
       mcpUrl: string
@@ -86,6 +99,8 @@ describe('config and data types', () => {
       fetch?: typeof fetch
       token?: string
       tokenEnv?: string
+      declaredScopes?: readonly AuthScope[]
+      auth?: { mcp?: SurfaceAuth; metrics?: SurfaceAuth; logs?: SurfaceAuth }
     }>()
   })
 
@@ -100,8 +115,17 @@ describe('config and data types', () => {
     const result: ToolResult = { result: [1, 2], isError: false }
     const args: ToolCallArguments = { limit: 10 }
     expectTypeOf(def).toMatchTypeOf<{ name: string; description?: string; inputSchema: Record<string, unknown> }>()
-    expectTypeOf(result).toMatchTypeOf<{ result: unknown; error?: string; isError?: boolean }>()
+    expectTypeOf(result).toMatchTypeOf<{ result: unknown; error?: unknown; isError?: boolean }>()
     expectTypeOf(args).toMatchTypeOf<Record<string, unknown>>()
+  })
+
+  it('exposes MCP results separately from REST ToolResult', () => {
+    const result: McpToolResult = {
+      content: [{ type: 'text', text: 'hello' }],
+      structuredContent: { ok: true },
+      isError: false,
+    }
+    expectTypeOf(result).toMatchTypeOf<{ content: readonly unknown[]; isError?: boolean }>()
   })
 
   it('CacheStats matches the server stats payload', () => {

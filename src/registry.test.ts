@@ -16,7 +16,7 @@ const config = (): ErpbridgeConfig => ({
 
 const sampleTool: RegistryTool = {
   apiVersion: 'erpbridge.io/v1',
-  kind: 'Tool',
+  kind: 'MCPTool',
   metadata: { name: 'list_employees', version: '1.0.0', module: 'hr', status: 'ready', isActive: true },
   spec: {
     description: {
@@ -76,6 +76,27 @@ describe('registry', () => {
   it('registry.list() returns the registered tools', async () => {
     const api = createRegistryApi(config())
     expect(await api.list()).toEqual([sampleTool])
+  })
+
+  it('registry.list({ name, version }) sends exact filters', async () => {
+    const scoped = await startFixtureServer([
+      {
+        method: 'GET',
+        path: '/apis/erpbridge.io/v1/tools',
+        body: (req: IncomingMessage) => {
+          const query = new URL(req.url ?? '/', 'http://localhost').searchParams
+          return [{ name: query.get('name'), version: query.get('version') }]
+        },
+      },
+    ])
+    try {
+      const api = createRegistryApi({ ...config(), baseUrl: scoped.url })
+      await expect(api.list({ name: 'list employees', version: '1.2.3' })).resolves.toEqual([
+        { name: 'list employees', version: '1.2.3' },
+      ])
+    } finally {
+      await scoped.close()
+    }
   })
 
   it('registry.list() throws ProtocolError for a non-array body', async () => {
@@ -173,6 +194,27 @@ describe('registry', () => {
     expect(await api.invoke('list_employees', { department: 'engineering' })).toEqual({
       result: { echo: 'list_employees', args: { department: 'engineering' } },
     })
+  })
+
+  it('invoke() sends a role selector as X-ERPBridge-Role', async () => {
+    const scoped = await startFixtureServer([
+      {
+        method: 'POST',
+        path: '/api/tools/invoke',
+        body: (req: IncomingMessage, rawBody: string) => {
+          const call = JSON.parse(rawBody) as { arguments?: Record<string, unknown> }
+          return { result: { args: call.arguments, role: req.headers['x-erpbridge-role'] ?? null } }
+        },
+      },
+    ])
+    try {
+      const api = createRegistryApi({ ...config(), baseUrl: scoped.url })
+      await expect(api.invoke('guarded_tool', { employee: 'Ada' }, { role: 'hr-reader' })).resolves.toEqual({
+        result: { args: { employee: 'Ada' }, role: 'hr-reader' },
+      })
+    } finally {
+      await scoped.close()
+    }
   })
 
   it('invoke() maps an unknown tool to NotFoundError', async () => {

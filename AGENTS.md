@@ -10,7 +10,7 @@ Rules for agents making changes to this repository.
 
 - Read the active plan before coding: `.agents/plans/Plan.md`. Implement tasks in order and tick each checkbox as it completes.
 - Each plan task carries a `Verify:` command — the task is done only when that command is green.
-- **`.agents/plans/Plan-auth.md` is a FUTURE plan — do not implement it.** It covers SDK auth and stays dormant until the ERPBridge server's own auth (`ERPBridge/.agents/plans/Plan-Auth.md`) ships.
+- **`.agents/plans/Plan-auth.md` is historical — do not implement it separately.** SDK auth work follows the active ERPBridge v0.3.0-alpha.1 section in `.agents/plans/Plan.md`.
 - Open a plan (or extend it) for any work the plans don't cover.
 
 ### Small commits
@@ -47,15 +47,15 @@ Rules for agents making changes to this repository.
 
 ### Secrets
 
-- **v1 ships auth-free by design** (plan decision D17): no token resolution, no bearer injection, no `ERPBridge_TOKEN` handling. The `token`/`tokenEnv` config fields exist but are inert.
+- **Auth is consume-only:** the SDK accepts application-supplied credentials and sends bearer headers to the server's protected surfaces. It never creates, lists, reveals, revokes, refreshes, or stores tokens.
 - Never log server responses' `Authorization`/`WWW-Authenticate` header values in tests or debug output.
-- Auth behavior (token resolution, injection, 401 mapping, scope awareness) is implemented only under the future `.agents/plans/Plan-auth.md` — keep it out of v1 code and commits.
+- Auth behavior (token resolution, injection, 401 mapping, scope awareness) is implemented task-by-task under the active compatibility plan; keep OAuth and token lifecycle out of the SDK.
 
 ## Conventions
 
 - Tool names on the wire are bare (`list_employees`), not `erp.`-prefixed — the proxy keys on exact registered names. Do not add prefix normalization without extending the plan.
 - Public API ships dual ESM + CJS built with **tsdown** (`format: ['esm','cjs']`, `fixedExtension` → `.mjs`/`.cjs` + `.d.mts`/`.d.cts`). Keep the `exports` map in `package.json` in sync with `src/index.ts`; subpaths `./client`, `./rest`, `./types` mirror their source files. Named exports only — no `export default`.
 - `@modelcontextprotocol/*` stays an external runtime dependency (never bundled into `dist/`).
-- Errors are typed: always throw/forward the class hierarchy from `src/types.ts` (`ErpbridgeError` → `AuthenticationError` / `NotFoundError` / `RateLimitError` / `ClientError` (4xx) / `ServerError` (5xx) / `ProtocolError`; future auth adds `AuthorizationError`), never raw `Error` with string-matching.
+- Errors are typed: always throw/forward the class hierarchy from `src/types.ts` (`ErpbridgeError` → `AuthenticationError` / `AuthorizationError` / `NotFoundError` / `RateLimitError` / `ClientError` (4xx) / `ServerError` (5xx) / `ProtocolError`), never raw `Error` with string-matching.
 - SSE parsing lives in one module and stays dependency-free; the server format is `data: <json>\n\n`.
 - Node >= 20 — use built-in `fetch`, `AbortSignal`, and `AsyncIterable` rather than adding runtime dependencies.

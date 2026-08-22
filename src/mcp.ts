@@ -1,8 +1,17 @@
-import { Client, ProtocolError as McpProtocolError, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
-import type { ContentBlock } from '@modelcontextprotocol/client'
-import type { ErpbridgeConfig, ToolCallArguments, ToolDefinition, ToolResult } from './types.js'
+import {
+  Client,
+  InsufficientScopeError,
+  ProtocolError as McpProtocolError,
+  SdkHttpError,
+  StreamableHTTPClientTransport,
+  UnauthorizedError,
+} from '@modelcontextprotocol/client'
+import type { CallToolResult } from '@modelcontextprotocol/client'
+import { credentialFor } from './config.js'
+import { requiredScopeFromChallenge } from './auth.js'
+import type { ErpbridgeConfig, McpToolResult, ToolCallArguments, ToolDefinition } from './types.js'
 import { INTERNAL_ERROR_CODE } from './errors.js'
-import { ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
+import { AuthenticationError, AuthorizationError, ErpbridgeError, NotFoundError, ProtocolError } from './types.js'
 import { SDK_VERSION } from './version.js'
 
 const CLIENT_NAME = '@erpbridge/sdk'
@@ -19,6 +28,7 @@ export class McpClient {
   private readonly config: ErpbridgeConfig
   private client: Client | undefined
   private transport: StreamableHTTPClientTransport | undefined
+  private mcpChallenge: string | undefined
 
   constructor(config: ErpbridgeConfig) {
     this.config = config
@@ -26,16 +36,20 @@ export class McpClient {
 
   /** Initialize a session: handshake, capability negotiation, session id. */
   async connect(): Promise<void> {
+    assertMcpAccess(this.config)
     await this.close()
     const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION })
-    const transport = new StreamableHTTPClientTransport(new URL(this.config.mcpUrl), {
-      fetch: this.config.fetch ?? globalThis.fetch,
+    this.mcpChallenge = undefined
+    const transport = createTransport(this.config, (challenge) => {
+      this.mcpChallenge = challenge
     })
     try {
       await client.connect(transport)
     } catch (error) {
       await transport.close().catch(() => {})
       await client.close().catch(() => {})
+      const mapped = mapMcpError(error, undefined, this.mcpChallenge)
+      if (mapped instanceof ErpbridgeError) throw mapped
       throw new ProtocolError(
         `failed to connect to ${this.config.mcpUrl}: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error, code: INTERNAL_ERROR_CODE },
@@ -56,24 +70,24 @@ export class McpClient {
           inputSchema: t.inputSchema as Record<string, unknown>,
         }))
       } catch (error) {
-        throw mapMcpError(error)
+        throw mapMcpError(error, undefined, this.mcpChallenge)
       }
     })
   }
 
   /**
    * Call a tool by its exact registered name. Server-recognized execution
-   * failures return `ToolResult { isError: true }`; an unknown tool surfaces
-   * as {@link NotFoundError}. A single text content item is returned parsed
-   * as JSON when it parses, otherwise as the raw string.
+   * failures return the MCP `CallToolResult` envelope with `isError: true`;
+   * an unknown tool surfaces as {@link NotFoundError}. Content blocks and
+   * structured output are returned unchanged.
    */
-  async callTool(name: string, args: ToolCallArguments): Promise<ToolResult> {
+  async callTool(name: string, args: ToolCallArguments): Promise<McpToolResult> {
     return this.execute(async () => {
       try {
         const res = await this.requireClient().callTool({ name, arguments: args })
-        return { result: mapContent(res.content), isError: res.isError ?? false }
+        return res as CallToolResult
       } catch (error) {
-        throw mapMcpError(error, name)
+        throw mapMcpError(error, name, this.mcpChallenge)
       }
     })
   }
@@ -119,6 +133,7 @@ export class McpClient {
     try {
       await this.connect()
     } catch (error) {
+      if (error instanceof ErpbridgeError) throw error
       throw new ProtocolError(
         `reconnect failed: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error, code: INTERNAL_ERROR_CODE },
@@ -127,7 +142,44 @@ export class McpClient {
   }
 }
 
-function mapMcpError(error: unknown, toolName?: string): unknown {
+function mapMcpError(error: unknown, toolName?: string, challenge?: string): unknown {
+  if (error instanceof UnauthorizedError || (error instanceof Error && error.name === 'UnauthorizedError')) {
+    return new AuthenticationError(error instanceof Error ? error.message : 'MCP request was unauthorized', {
+      status: 401,
+      hint: challenge,
+      wwwAuthenticate: challenge,
+      cause: error instanceof Error ? error : undefined,
+    })
+  }
+  if (error instanceof InsufficientScopeError || (error instanceof Error && error.name === 'InsufficientScopeError')) {
+    const requiredScope = error instanceof InsufficientScopeError ? error.requiredScope : undefined
+    return new AuthorizationError(error instanceof Error ? error.message : 'MCP request was forbidden', {
+      status: 403,
+      requiredScope,
+      wwwAuthenticate: challenge,
+      cause: error instanceof Error ? error : undefined,
+    })
+  }
+  if (error instanceof SdkHttpError) {
+    if (error.status === 401) {
+      return new AuthenticationError(error.message, {
+        status: 401,
+        body: error.data,
+        hint: challenge,
+        wwwAuthenticate: challenge,
+        cause: error,
+      })
+    }
+    if (error.status === 403) {
+      return new AuthorizationError(error.message, {
+        status: 403,
+        body: error.data,
+        requiredScope: requiredScopeFromChallenge(challenge),
+        wwwAuthenticate: challenge,
+        cause: error,
+      })
+    }
+  }
   if (error instanceof McpProtocolError || (error instanceof Error && typeof (error as { code?: unknown }).code === 'number')) {
     const code = (error as { code?: number }).code ?? INTERNAL_ERROR_CODE
     const message = error instanceof Error ? error.message : String(error)
@@ -137,6 +189,27 @@ function mapMcpError(error: unknown, toolName?: string): unknown {
     return new ProtocolError(message, { cause: error instanceof Error ? error : undefined, code })
   }
   return error
+}
+
+function createTransport(config: ErpbridgeConfig, captureChallenge?: (challenge: string | undefined) => void): StreamableHTTPClientTransport {
+  const credential = credentialFor(config, 'mcp')
+  const fetchImpl = config.fetch ?? globalThis.fetch
+  return new StreamableHTTPClientTransport(new URL(config.mcpUrl), {
+    fetch: async (input, init) => {
+      const response = await fetchImpl(input, init)
+      captureChallenge?.(response.headers.get('www-authenticate') ?? undefined)
+      return response
+    },
+    onInsufficientScope: 'throw',
+    ...(credential.token ? { requestInit: { headers: { Authorization: `Bearer ${credential.token}` } } } : {}),
+  })
+}
+
+function assertMcpAccess(config: ErpbridgeConfig): void {
+  const credential = credentialFor(config, 'mcp')
+  if (credential.declaredScopes && credential.declaredScopes.length > 0 && !credential.declaredScopes.includes('mcp')) {
+    throw new AuthorizationError('configured credential does not declare required scope: mcp', { requiredScope: 'mcp' })
+  }
 }
 
 function isUnknownToolError(message: string, toolName: string, code: number): boolean {
@@ -155,29 +228,4 @@ function toProtocolError(error: unknown): ProtocolError {
     error instanceof Error ? error.message : String(error),
     { cause: error instanceof Error ? error : undefined, code: INTERNAL_ERROR_CODE },
   )
-}
-
-function mapContent(content: ContentBlock[] | undefined): unknown {
-  if (!content || content.length === 0) return null
-  if (content.length === 1) {
-    const only = content[0]!
-    if (only.type === 'text') return parseJsonOrText(only.text)
-    return only
-  }
-  return content.map((c) => {
-    if (c.type === 'text') return parseJsonOrText(c.text)
-    return c
-  })
-}
-
-function parseJsonOrText(text: string): unknown {
-  const trimmed = text.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return text
-    }
-  }
-  return text
 }

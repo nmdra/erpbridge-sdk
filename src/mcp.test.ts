@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startMcpFixture, type McpFixture } from '../fixtures/mcp-server.js'
 import type { ErpbridgeConfig, ToolResult } from './types.js'
-import { NotFoundError, ProtocolError } from './types.js'
+import { AuthenticationError, AuthorizationError, NotFoundError, ProtocolError } from './types.js'
 import { McpClient } from './mcp.js'
+import { resolveConfig } from './config.js'
 
 let fixture: McpFixture
 
@@ -44,15 +45,121 @@ describe('McpClient', () => {
     await client.close()
   })
 
-  it('calls a known tool and maps its content to the ToolResult', async () => {
-    const client = new McpClient(config())
+  it('sends the MCP surface credential on initialize and follow-up requests', async () => {
+    const client = new McpClient(resolveConfig({ mcpUrl: fixture.mcpUrl, token: 'sdk-mcp-fixture-token' }))
     await client.connect()
-    const result = await client.callTool('list_employees', { limit: 10 })
-    expect(result).toEqual({ result: { ok: true, tool: 'list_employees', args: { limit: 10 } }, isError: false })
+    await client.listTools()
+    const authorizationHeaders = fixture.authorizationHeaders().filter((value) => value !== undefined)
+    expect(authorizationHeaders.length).toBeGreaterThanOrEqual(3)
+    expect(authorizationHeaders.every((value) => value === 'Bearer sdk-mcp-fixture-token')).toBe(true)
     await client.close()
   })
 
-  it('returns ToolResult with isError true for server-recognized execution failures', async () => {
+  it('maps an MCP 401 to AuthenticationError without reconnecting', async () => {
+    const unauthorized = await startMcpFixture({ reject: { method: 'initialize', status: 401, body: { error: 'unauthorized' } } })
+    try {
+      const client = new McpClient(resolveConfig({ mcpUrl: unauthorized.mcpUrl, token: 'sdk-mcp-fixture-token' }))
+      await expect(client.connect()).rejects.toBeInstanceOf(AuthenticationError)
+      expect(unauthorized.handshakeCount()).toBe(0)
+      await client.close()
+    } finally {
+      await unauthorized.close()
+    }
+  })
+
+  it('maps an MCP insufficient-scope challenge to AuthorizationError', async () => {
+    const forbidden = await startMcpFixture({
+      reject: {
+        method: 'initialize',
+        status: 403,
+        headers: { 'WWW-Authenticate': 'Bearer error="insufficient_scope", scope="mcp"' },
+        body: { error: 'mcp scope required' },
+      },
+    })
+    try {
+      const client = new McpClient(resolveConfig({ mcpUrl: forbidden.mcpUrl, token: 'sdk-mcp-fixture-token' }))
+      await expect(client.connect()).rejects.toMatchObject({ name: 'AuthorizationError', status: 403, requiredScope: 'mcp' })
+      await client.close()
+    } finally {
+      await forbidden.close()
+    }
+  })
+
+  it('does not reconnect after an MCP authorization failure', async () => {
+    const forbidden = await startMcpFixture({ reject: { method: 'tools/call', status: 403, body: { error: 'forbidden' } } })
+    try {
+      const client = new McpClient(resolveConfig({ mcpUrl: forbidden.mcpUrl, token: 'sdk-mcp-fixture-token' }))
+      await client.connect()
+      await expect(client.callTool('list_employees', {})).rejects.toBeInstanceOf(AuthorizationError)
+      expect(forbidden.handshakeCount()).toBe(1)
+      await client.close()
+    } finally {
+      await forbidden.close()
+    }
+  })
+
+  it('forwards an authorization error from a failed reconnect handshake', async () => {
+    const expiring = await startMcpFixture({
+      expireAfterRequests: 0,
+      reject: { method: 'initialize', status: 401, body: { error: 'unauthorized' } },
+      rejectAfterHandshakes: 1,
+    })
+    try {
+      const client = new McpClient(resolveConfig({ mcpUrl: expiring.mcpUrl, token: 'sdk-mcp-fixture-token' }))
+      await client.connect()
+      await expect(client.listTools()).rejects.toMatchObject({ name: 'AuthenticationError', status: 401 })
+      expect(expiring.handshakeCount()).toBe(1)
+      await client.close()
+    } finally {
+      await expiring.close()
+    }
+  })
+
+  it('calls a known tool and returns the MCP result envelope', async () => {
+    const client = new McpClient(config())
+    await client.connect()
+    const result = await client.callTool('list_employees', { limit: 10 })
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '{"ok":true,"tool":"list_employees","args":{"limit":10}}' }],
+      isError: false,
+    })
+    await client.close()
+  })
+
+  it('preserves the complete MCP result envelope and content blocks', async () => {
+    const rich = await startMcpFixture({
+      tools: [
+        {
+          name: 'rich_result',
+          result: {
+            content: [
+              { type: 'text', text: '{"ok":true}' },
+              { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' },
+            ],
+            structuredContent: { ok: true, source: 'fixture' },
+            isError: false,
+          },
+        },
+      ],
+    })
+    try {
+      const client = new McpClient({ ...config(), mcpUrl: rich.mcpUrl })
+      await client.connect()
+      await expect(client.callTool('rich_result', {})).resolves.toEqual({
+        content: [
+          { type: 'text', text: '{"ok":true}' },
+          { type: 'image', data: 'aGVsbG8=', mimeType: 'image/png' },
+        ],
+        structuredContent: { ok: true, source: 'fixture' },
+        isError: false,
+      })
+      await client.close()
+    } finally {
+      await rich.close()
+    }
+  })
+
+  it('returns an MCP envelope with isError true for server-recognized execution failures', async () => {
     const failing = await startMcpFixture({
       tools: [{ name: 'flaky', failWith: 'boom: backend down' }],
     })
@@ -61,7 +168,7 @@ describe('McpClient', () => {
       await client.connect()
       const result = await client.callTool('flaky', {})
       expect(result.isError).toBe(true)
-      expect(String(result.result)).toContain('backend down')
+      expect(result.content).toContainEqual({ type: 'text', text: 'boom: backend down' })
       await client.close()
     } finally {
       await failing.close()

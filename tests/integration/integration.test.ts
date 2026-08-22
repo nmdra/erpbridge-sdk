@@ -34,13 +34,13 @@ integration('ERPBridge live integration (happy paths)', () => {
     await client.close()
   })
 
-  it('mcp.callTool("system.progress_test") returns a ToolResult', async () => {
+  it('mcp.callTool("system.progress_test") returns an MCP result envelope', async () => {
     const client = makeClient()
     await client.mcp.connect()
     const result = await client.mcp.callTool('system.progress_test', { steps: 1 })
     expect(result.isError).toBe(false)
-    // Live server wraps tool text results in a `{ content: [...] }` envelope.
-    expect(JSON.stringify(result.result)).toContain('Finished 1 steps successfully')
+    // Live server wraps tool text results in a text content block.
+    expect(JSON.stringify(result.content)).toContain('Finished 1 steps successfully')
     await client.close()
   })
 
@@ -49,7 +49,7 @@ integration('ERPBridge live integration (happy paths)', () => {
     await client.mcp.connect()
     const result = await client.tools.list_employees!({})
     expect(result.isError).toBe(false)
-    expect(result.result).toBeDefined()
+    expect(Array.isArray(result.content)).toBe(true)
     await client.close()
   })
 
@@ -132,7 +132,7 @@ integration('ERPBridge live integration (happy paths)', () => {
     const version = '1.0.0'
     const def: RegistryTool = {
       apiVersion: 'erpbridge.io/v1',
-      kind: 'Tool',
+      kind: 'MCPTool',
       metadata: { name, version, module: 'sdk-test' },
       spec: {
         description: { short: 'SDK integration probe' },

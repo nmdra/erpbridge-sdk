@@ -11,7 +11,9 @@ import { createSystemApi } from './system.js'
 import type { SystemApi } from './system.js'
 import { createToolsProxy } from './tools.js'
 import type { ToolFunction } from './tools.js'
-import type { ToolCallArguments, ToolResult } from './types.js'
+import type { DirectInvokeOptions, ToolCallArguments, ToolResult } from './types.js'
+
+export type { McpToolResult } from './types.js'
 
 /**
  * The public ERPBridge client facade.
@@ -37,7 +39,7 @@ export interface ErpbridgeClient {
   /** REST registry CRUD over the stored tool resources (C3). */
   registry: RegistryApi
   /** Direct REST tool invocation, identical to {@link RegistryApi.invoke}. */
-  invoke: (name: string, args: ToolCallArguments) => Promise<ToolResult>
+  invoke: (name: string, args: ToolCallArguments, opts?: DirectInvokeOptions) => Promise<ToolResult>
   /** Log aggregation: {@link LogsApi.recent} and {@link LogsApi.stream}. */
   logs: LogsApi
   /** Metrics: raw Prometheus text and parsed families. */

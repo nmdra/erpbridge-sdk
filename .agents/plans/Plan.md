@@ -239,7 +239,7 @@ use in this release.
 
 - [x] **B3 — Align ERPBridge MCP CORS with browser protocol requests (one ERPBridge `fix:` commit).** Add `MCP-Protocol-Version` to the existing Streamable HTTP CORS allowed headers without changing origins, methods, credentials, REST handlers, or auth behavior. Extend the server's HTTP tests with an `OPTIONS /mcp/` cross-origin preflight requesting `Content-Type`, `Mcp-Session-Id`, and `MCP-Protocol-Version`; assert the allowed headers include all three and `Mcp-Session-Id` remains exposed on the initialize response. Update the server connectivity guide’s browser statement to name the required protocol/session behavior. (**Seam:** `Server.ServeHTTP()` Streamable HTTP CORS middleware; **Files:** `../ERPBridge/internal/mcp/server.go`, `../ERPBridge/internal/mcp/server_test.go`, `../ERPBridge/docs/connectivity.md`; **Verify:** focused Go CORS test is red first, then `go test ./internal/mcp/...` and the ERPBridge repository’s standard test/build gates are green.)
 
-- [x] **B4 — Release-level consumer verification and documentation review (one SDK `docs:`/`test:` commit only if B1-B2 did not already contain the required docs).** Run the packed Node consumer smoke plus the new Vite smoke against the release candidate. Confirm the docs distinguish browser MCP/tools from Node-only/cross-origin-unsupported REST calls and do not imply browser auth support while v1 auth remains inert. Record the new browser scenario in `.scratch/testing/` only when it reveals a new environment fact, failure, or flake; do not commit scratch content. (**Seam:** packed tarball installed by independent Node and browser consumers; **Files:** documentation only if corrections are needed; **Verify:** `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`; Node packed-consumer smoke remains green; docs-site `npm run build` is green in `../erpbridge-docs`.)
+- [x] **B4 — Release-level consumer verification and documentation review (one SDK `docs:`/`test:` commit only if B1-B2 did not already contain the required docs).** Run the packed Node consumer smoke plus the new Vite smoke against the release candidate. Confirm the docs distinguish browser MCP/tools from Node-only/cross-origin-unsupported REST calls and describe the active opt-in, consume-only auth contract. Record the new browser scenario in `.scratch/testing/` only when it reveals a new environment fact, failure, or flake; do not commit scratch content. (**Seam:** packed tarball installed by independent Node and browser consumers; **Files:** documentation only if corrections are needed; **Verify:** `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`; Node packed-consumer smoke remains green; docs-site `npm run build` is green in `../erpbridge-docs`.)
 
 ### Verification
 
@@ -253,4 +253,148 @@ use in this release.
 
 - “Browser” means a current evergreen browser used through an ESM-capable bundler such as Vite, not direct unbundled npm imports, legacy browsers, React Native, Deno, Workers, or SSR-specific behavior.
 - Browser requests target an ERPBridge instance using the MCP `/mcp/` Streamable HTTP endpoint. A frontend must still use a safe deployment origin policy; this task preserves the server’s existing `*` policy rather than designing a new origin configuration system.
-- REST browser support, browser credential storage, bearer injection, and global CORS are explicitly deferred; auth remains owned by the dormant `Plan-auth.md`.
+- REST browser support, browser credential storage, and global CORS are explicitly deferred; the active compatibility plan covers SDK bearer injection while the server remains the authority for browser deployment policy.
+
+---
+
+# ERPBridge v0.3.0-alpha.1 compatibility upgrade
+
+**Status:** complete — R1 through R8 verified; live auth coverage remains opt-in.
+
+## Goal and release boundary
+
+Upgrade `@erpbridge/sdk` from `0.1.1` to work with ERPBridge
+**v0.3.0-alpha.1** (release commit `083acc4`, 2026-08-22). Preserve anonymous
+open-mode operation, while adding consumer-side bearer credentials, role-aware
+invocation, the new registry contract, and correct MCP result handling.
+
+This is **consume-only**: the SDK sends opaque credentials supplied by the
+application but does not create, list, reveal, revoke, refresh, or store
+tokens. The server's release already uses an MCP protocol range compatible with
+the installed `@modelcontextprotocol/client@2.0.0`; do not change MCP client
+dependencies as part of this work.
+
+Use focused `feat:` commits so release-please creates the next pre-1.0 minor
+release (expected `0.2.0` from `0.1.1`). Do not hand-edit package versions or
+versioned CHANGELOG entries. The MCP return type changes materially, so include
+an upgrade note; do not add a `BREAKING CHANGE:` footer unless maintainers
+explicitly choose a major release.
+
+## Release facts and decisions
+
+| Server v0.3.0-alpha.1 contract | SDK compatibility decision |
+| --- | --- |
+| Auth is opt-in: an unset `API_AUTH_TOKEN` leaves the server open. `/mcp/`, `/metrics`, and `/api/logs/*` respectively require `mcp`, `metrics`, and `logs` scopes when enabled. Registry, cache, and direct invoke require admin; health stays open. | No resolved token means silent anonymous operation. Global credentials cover every surface; only MCP, metrics, and logs allow a per-surface override. The SDK never treats configuration as proof that a token is valid or privileged. |
+| The server authenticates from `Authorization`; current 401/403 responses do not consistently include `WWW-Authenticate`. | Preserve a received challenge without logging it. Leave `requiredScope` unset unless an actual bearer insufficient-scope challenge provides it—never infer scopes from an endpoint, body, or opaque token. |
+| MCP `tools/call` returns protocol `CallToolResult` envelopes; REST direct invoke still returns `{ result, error?, isError? }`. | Export distinct `McpToolResult` and REST `ToolResult` types. Stop parsing JSON text and flattening MCP content. |
+| Registry supports exact `name`/`version` filters and MCPTool manifests with `spec.security.allowedRoles`; roles differ by transport. | Add typed filters and manifests. MCP callers pass `role` in tool arguments; direct REST invoke sends only `X-ERPBridge-Role`, never `arguments.role`. |
+| Cache falls back to in-process LRU when Redis is absent; the existing stats shape can have empty `redisMemory`. | Keep cache APIs/types; treat a successful memory-mode stats response as healthy rather than expecting 503. |
+
+Evidence: `../ERPBridge/CHANGELOG.md`, `docs/{api,tokens,tool-schema,caching}.md`, route/auth code in `internal/mcp/{server,auth,authz,tool}.go`, and installed MCP client v2 transport/error declarations.
+
+## API contract to implement
+
+### Credential input, resolution, and routing
+
+Activate the existing additive fields and expose these public types:
+
+```ts
+type AuthScope = "mcp" | "metrics" | "logs";
+
+interface SurfaceAuth {
+  token?: string;
+  tokenEnv?: string;
+  declaredScopes?: readonly AuthScope[];
+}
+
+interface ErpbridgeClientConfig {
+  token?: string;
+  tokenEnv?: string;
+  declaredScopes?: readonly AuthScope[];
+  auth?: { mcp?: SurfaceAuth; metrics?: SurfaceAuth; logs?: SurfaceAuth };
+}
+```
+
+Resolve credentials once while normalizing `createClient` configuration. Empty
+strings are absent. `tokenEnv` is an environment-variable *name*, never a
+token. Read `globalThis.process?.env` without statically importing `node:*` so
+browser bundles remain valid; browsers get no env-derived token but can use an
+explicit `token`.
+
+For each protected surface use this precedence:
+
+1. surface `token`;
+2. surface `tokenEnv` value, if non-empty;
+3. global `token`;
+4. global `tokenEnv` value, defaulting the name to `ERPBridge_TOKEN` when it
+   was omitted;
+5. anonymous access.
+
+`declaredScopes` follows the winning credential level. It is only a caller
+assertion. Before MCP/metrics/logs I/O, throw a local `AuthorizationError` only
+if a non-empty declaration excludes that surface's scope. With no declaration,
+send the request. Do not local-guard health/cache/registry/direct invoke: their
+admin policy is outside this three-scope model.
+
+When a token resolves, generated `Authorization: Bearer <token>` overrides any
+caller-provided Authorization header; with no token preserve caller headers.
+Never include bearer or `WWW-Authenticate` values in error messages, test
+output, logs, scratch reports, or examples.
+
+### Results, errors, registry, and cache
+
+- Retain `ToolResult` for direct REST invoke and broaden `error` to `unknown`.
+- Export `McpToolResult` as the official client `CallToolResult`; `mcp.callTool`
+  and `client.tools.<bareName>()` return it unchanged, including `content`,
+  `structuredContent`, and `isError`.
+- Add exported `AuthorizationError extends ErpbridgeError` for 403, with status,
+  body, and optional `requiredScope`. Keep `AuthenticationError` for 401 and
+  add `wwwAuthenticate?` while retaining `hint` for compatibility.
+- Map REST 401/403/404/429/other 4xx/5xx to Authentication/Authorization/
+  NotFound/RateLimit/Client/Server errors. Map MCP `UnauthorizedError` to
+  AuthenticationError and `InsufficientScopeError` or 403 `SdkHttpError` to
+  AuthorizationError before generic reconnect handling. Auth failures never
+  reconnect.
+- Add `registry.list({ name?: string; version?: string })` and
+  `registry.invoke(name, arguments, { role?: string })`. Model
+  `apiVersion: "erpbridge.io/v1"`, `kind: "MCPTool"`, and
+  `spec.security.allowedRoles?: readonly string[]`.
+
+## Tasks
+
+Each checkbox is one focused Conventional Commit. Follow TDD: make a fixture
+test fail first, implement the minimum, then refactor. Use `node:http` and MCP
+fixtures, never fetch/MCP mocks. Read `Plan-testing.md` before meaningful test
+runs; write ignored `.scratch/testing/` reports only for failures, flakes, or
+new test/environment discoveries.
+
+- [x] **R1 — Activate current guidance and public auth vocabulary (`docs:` then `feat:`).** Update `AGENTS.md` so auth is no longer prohibited and mark the former future plan historical. Add/export `AuthScope`, `SurfaceAuth`, normalized credential internals, `AuthorizationError`, and backward-compatible authentication challenge fields in `src/{types,config,index}.ts`. Test public exports, error shape, and browser-safe env access without static Node imports. Synchronize `../erpbridge-docs/docs/sdk/agent-guide.mdx`, but do not yet claim injection works. **Verify:** focused tests red then `npm test && npm run typecheck && npm run build && npm run lint:publish`; docs-site `npm run build`.
+
+- [x] **R2 — Resolve and inject REST/SSE credentials (`feat:`).** Implement the exact precedence table in config, carry an internal surface identity through HTTP, and merge headers case-insensitively. Route metrics through `metrics`, both logs methods and all SSE reconnects through `logs`, and health/cache/registry/direct invoke through global auth. Extend HTTP/SSE fixtures to capture headers without displaying their values. Cover global explicit/default-env/custom-env, surface override, empty values, anonymous operation, caller Authorization precedence, and SSE reconnect. Update README, CHANGELOG Unreleased, and docs authentication/installation/overview with the formerly-inert-token migration. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run lint:publish`; docs build.
+
+- [x] **R3 — Add scope guards and REST error mapping (`feat:`).** Fail before I/O only for non-empty declared scopes that exclude MCP/metrics/logs; prove absent declarations reach the fixture and admin surfaces are never locally blocked. Map 403 to `AuthorizationError`; preserve challenge metadata only when actually present. Test 401, ordinary 403, challenge-bearing 403, 404, 429, and 5xx without leaking headers. Document scope declarations as assertions rather than token inspection. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run lint:publish`; docs build.
+
+- [x] **R4 — Authenticate MCP and map MCP auth failures (`feat:`).** Construct `StreamableHTTPClientTransport` with `requestInit.headers` and `onInsufficientScope: "throw"`; reuse resolved MCP auth for connect and reconnect. Map official `UnauthorizedError`, `InsufficientScopeError`, and 403 `SdkHttpError` before retry logic. Do not add OAuth/provider/refresh behavior. Extend the MCP fixture to validate initialize and subsequent headers and to return selected 401/403 responses; prove typed errors do not loop reconnect. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`; docs build.
+
+- [x] **R5 — Preserve MCP result envelopes (`feat:`).** First return text JSON, non-text content, `structuredContent`, and `isError` from the MCP fixture to expose today’s flattening. Remove MCP JSON-text parsing; return `McpToolResult` unchanged from direct and proxy calls. Keep REST direct-invoke `ToolResult` behavior. Add root and `./client` type-level consumer coverage and an upgrade example. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`; docs build.
+
+- [x] **R6 — Add registry/role contract support (`feat:`).** Add typed exact registry filters, MCPTool/allowed-role schema, and `DirectInvokeOptions.role` serialized solely in `X-ERPBridge-Role`. Fixture-test query encoding, absent options, manifest shape, header role, and absence of direct `arguments.role`. Separately prove guarded MCP calls preserve `role` as an ordinary MCP argument. Do not add local role validation. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run lint:publish`; docs build.
+
+- [x] **R7 — Align cache and opt-in integration proof (`test:` / `docs:`).** Make no-Redis fixture coverage return valid memory-mode stats (including empty `redisMemory`); retain 503 coverage only for a genuinely unavailable cache. Add `tests/integration/auth.test.ts`, skipped unless `ERPBridge_TEST_SERVER` and safely provisioned scoped/admin token variables exist. Cover scoped surfaces, admin registry/cache/direct invoke, 401/403 mapping, role-guarded calls, filters, and an MCP envelope. Tokens are provisioned externally with server tooling; never created, logged, or revealed by this SDK. Preserve anonymous integration testing with only `ERPBridge_TEST_SERVER`. **Verify:** fixture suite red then green; full package gates; safely provisioned `ERPBridge_TEST_SERVER=… npm run test:integration`; scratch report only for a discovery/failure/flake.
+
+- [x] **R8 — Verify the packed release and documentation (`test:`/`docs:` only for corrections).** Pack the SDK and test clean Node ESM, Node CJS, and Vite MCP/tools consumers. Confirm root, `./client`, `./rest`, and `./types` exports; MCP remains external; browser output has no `node:*`; and type consumers distinguish `McpToolResult` from `ToolResult`. Review all SDK docs plus the agent guide for one consistent credential/error/result story. Leave release version entries to release-please. **Verify:** `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`, packed ESM/CJS smoke, docs-site `npm run build`.
+
+## Completion criteria
+
+1. Open-mode users remain anonymous and receive no generated bearer header.
+2. Credential routing works across REST, SSE reconnects, MCP initialization, and MCP reconnects without secret disclosure.
+3. 401 and 403 are independently catchable; ordinary 403 never fabricates `requiredScope`.
+4. MCP envelopes are preserved and REST result compatibility remains intact.
+5. Registry filters/schema, role routing, and memory-cache behavior match the release with hermetic and optional live coverage.
+6. Package quality gates, packed consumers, and paired docs build pass; no generated artifacts or `.scratch` files are committed.
+
+## Out of scope
+
+Token lifecycle/admin credentials; OAuth, PKCE, refresh, or token storage;
+MCP dependency/protocol upgrades; general REST browser CORS or browser credential
+persistence; and SDK role-management or role validation.

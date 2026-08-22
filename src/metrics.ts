@@ -17,7 +17,7 @@ export interface MetricsApi {
 /** Build the metrics API over the HTTP core. */
 export function createMetricsApi(config: ErpbridgeConfig): MetricsApi {
   const text = async (): Promise<string> => {
-    const res = await request<string>(config, { path: '/metrics' })
+    const res = await request<string>(config, { path: '/metrics', surface: 'metrics' })
     return typeof res.body === 'string' ? res.body : JSON.stringify(res.body)
   }
   return {

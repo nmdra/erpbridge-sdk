@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { startLogsSseFixture, type LogsSseFixture } from '../fixtures/logs-sse.js'
-import { ProtocolError } from './types.js'
+import { AuthorizationError, ProtocolError } from './types.js'
 import type { ErpbridgeConfig, LogRecord } from './types.js'
 import { createLogsApi } from './logs.js'
 
@@ -44,6 +44,22 @@ describe('createLogsApi', () => {
     const recent = await api.recent()
     expect(recent).toEqual(logs)
     expect(recent[0]).toMatchObject({ level: 'INFO', msg: 'server started' })
+  })
+
+  it('uses the logs surface credential for recent and SSE requests', async () => {
+    const scoped = await startLogsSseFixture({ recentLogs: logs, events: logs, intervalMs: 5, closeAfterEmitted: 1 })
+    try {
+      const api = createLogsApi({ ...config(), baseUrl: scoped.url, auth: { logs: { token: 'sdk-logs-fixture-token' } } })
+      await api.recent()
+      await collect(api.stream({ reconnectDelayMs: 10 }), 2)
+      expect(scoped.authorizationHeaders()).toEqual([
+        'Bearer sdk-logs-fixture-token',
+        'Bearer sdk-logs-fixture-token',
+        'Bearer sdk-logs-fixture-token',
+      ])
+    } finally {
+      await scoped.close()
+    }
   })
 
   it('recent() throws a typed error for a non-array response body', async () => {
@@ -93,6 +109,21 @@ describe('createLogsApi', () => {
       const records = await collect(api.stream({ reconnectDelayMs: 10 }), 2)
       expect(records).toEqual(logs.slice(0, 2))
       expect(scoped.connections()).toBe(2)
+    } finally {
+      await scoped.close()
+    }
+  })
+
+  it('propagates SSE authorization failures instead of reconnecting', async () => {
+    const scoped = await startLogsSseFixture({ streamFailure: { status: 403, body: { error: 'forbidden' } } })
+    try {
+      const api = createLogsApi({ ...config(), baseUrl: scoped.url })
+      const controller = new AbortController()
+      const iterator = api.stream({ signal: controller.signal, reconnectDelayMs: 10 })[Symbol.asyncIterator]()
+      const pending = iterator.next()
+      setTimeout(() => controller.abort(), 50)
+      await expect(pending).rejects.toMatchObject({ name: 'AuthorizationError', status: 403 })
+      expect(scoped.connections()).toBe(1)
     } finally {
       await scoped.close()
     }

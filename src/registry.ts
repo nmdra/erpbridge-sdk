@@ -3,7 +3,9 @@ import { request } from './http.js'
 import type {
   ErpbridgeConfig,
   RegistryDeleteOptions,
+  RegistryListOptions,
   RegistryTool,
+  DirectInvokeOptions,
   ToolApplyResult,
   ToolCallArguments,
   ToolResult,
@@ -22,7 +24,7 @@ const INVOKE_PATH = '/api/tools/invoke'
  */
 export interface RegistryApi {
   /** List all registered tools (GET `/apis/erpbridge.io/v1/tools`). */
-  list(): Promise<RegistryTool[]>
+  list(opts?: RegistryListOptions): Promise<RegistryTool[]>
   /**
    * Apply a tool definition (POST `/apis/erpbridge.io/v1/tools`).
    *
@@ -43,14 +45,17 @@ export interface RegistryApi {
    * Unknown tools surface as {@link NotFoundError}; a failed tool execution
    * surfaces as {@link ServerError}.
    */
-  invoke(name: string, args: ToolCallArguments): Promise<ToolResult>
+  invoke(name: string, args: ToolCallArguments, opts?: DirectInvokeOptions): Promise<ToolResult>
 }
 
 /** Create the REST tool registry and invoke API. */
 export function createRegistryApi(config: ErpbridgeConfig): RegistryApi {
   return {
-    async list(): Promise<RegistryTool[]> {
-      const res = await request<unknown>(config, { path: REGISTRY_PATH })
+    async list(opts: RegistryListOptions = {}): Promise<RegistryTool[]> {
+      const query: Record<string, string | undefined> = {}
+      if (opts.name !== undefined) query.name = opts.name
+      if (opts.version !== undefined) query.version = opts.version
+      const res = await request<unknown>(config, { path: REGISTRY_PATH, query })
       if (!Array.isArray(res.body)) {
         throw protocolError(`invalid response from ${REGISTRY_PATH}: expected an array`)
       }
@@ -79,8 +84,14 @@ export function createRegistryApi(config: ErpbridgeConfig): RegistryApi {
       await request<unknown>(config, { method: 'DELETE', path: REGISTRY_PATH, query })
     },
 
-    async invoke(name: string, args: ToolCallArguments): Promise<ToolResult> {
-      const res = await request<unknown>(config, { method: 'POST', path: INVOKE_PATH, body: { name, arguments: args } })
+    async invoke(name: string, args: ToolCallArguments, opts: DirectInvokeOptions = {}): Promise<ToolResult> {
+      const headers = opts.role === undefined ? undefined : { 'X-ERPBridge-Role': opts.role }
+      const res = await request<unknown>(config, {
+        method: 'POST',
+        path: INVOKE_PATH,
+        body: { name, arguments: args },
+        headers,
+      })
       const body = res.body as ToolResult | null
       if (body === null || typeof body !== 'object' || !('result' in body)) {
         throw protocolError(`invalid response from ${INVOKE_PATH}: expected { result }`)

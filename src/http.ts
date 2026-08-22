@@ -1,5 +1,7 @@
-import type { ErpbridgeConfig } from './types.js'
-import { AuthenticationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
+import { credentialFor } from './config.js'
+import { requiredScopeFromChallenge } from './auth.js'
+import type { AuthScope, ErpbridgeConfig } from './types.js'
+import { AuthenticationError, AuthorizationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
 
 /** A request against the ERPBridge server. */
 export interface HttpRequest {
@@ -13,6 +15,8 @@ export interface HttpRequest {
   body?: unknown
   /** Extra headers to send. */
   headers?: Record<string, string>
+  /** Protected surface credential to use, when applicable. */
+  surface?: AuthScope
   /** External abort signal (e.g. from a caller's AbortController). */
   signal?: AbortSignal
   /** Skip the per-request timeout (long-lived streams, e.g. SSE). */
@@ -47,8 +51,11 @@ export async function request<T = unknown>(config: ErpbridgeConfig, req: HttpReq
  * consumers (e.g. SSE). HTTP error statuses still throw the mapped error.
  */
 export async function requestStream(config: ErpbridgeConfig, req: HttpRequest): Promise<Response> {
+  assertSurfaceAccess(config, req.surface)
   const url = buildUrl(config.baseUrl, req.path, req.query)
   const headers = new Headers(req.headers)
+  const credential = credentialFor(config, req.surface)
+  if (credential.token) headers.set('Authorization', `Bearer ${credential.token}`)
   if (req.body !== undefined) headers.set('Content-Type', 'application/json')
   headers.set('Accept', 'application/json, text/event-stream')
 
@@ -89,10 +96,21 @@ function mapHttpError(res: Response, body: unknown): ErpbridgeError {
   const status = res.status
   const message = errorMessage(status, body)
   if (status === 401) {
+    const challenge = res.headers.get('www-authenticate') ?? undefined
     return new AuthenticationError(message, {
       status,
       body,
-      hint: res.headers.get('www-authenticate') ?? undefined,
+      hint: challenge,
+      wwwAuthenticate: challenge,
+    })
+  }
+  if (status === 403) {
+    const challenge = res.headers.get('www-authenticate') ?? undefined
+    return new AuthorizationError(message, {
+      status,
+      body,
+      wwwAuthenticate: challenge,
+      requiredScope: requiredScopeFromChallenge(challenge),
     })
   }
   if (status === 404) {
@@ -109,6 +127,16 @@ function mapHttpError(res: Response, body: unknown): ErpbridgeError {
     return new ClientError(message, { status, body })
   }
   return new ServerError(message, { status, body })
+}
+
+function assertSurfaceAccess(config: ErpbridgeConfig, surface: HttpRequest['surface']): void {
+  if (!surface) return
+  const declaredScopes = credentialFor(config, surface).declaredScopes
+  if (declaredScopes && declaredScopes.length > 0 && !declaredScopes.includes(surface)) {
+    throw new AuthorizationError(`configured credential does not declare required scope: ${surface}`, {
+      requiredScope: surface,
+    })
+  }
 }
 
 function errorMessage(status: number, body: unknown): string {

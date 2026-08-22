@@ -8,9 +8,27 @@ registry.
 - Node.js >= 20, dual ESM + CJS, dependency-light
 - Browser ESM support for the MCP client and exact-name tool proxy
 - Typed errors across the whole surface
-- No auth in v1 — v1 connects anonymously and surfaces server 401s as
-  `AuthenticationError`. Auth is owned by the future auth plan (see
-  [Plan-auth.md](.agents/plans/Plan-auth.md)).
+- Consume-only bearer authentication aligned with ERPBridge v0.3.0-alpha.1;
+  the SDK never creates or revokes tokens.
+
+## Authentication
+
+The SDK supports consume-only bearer authentication for ERPBridge
+v0.3.0-alpha.1 and later. Provide an application-managed token directly or by
+environment-variable name; the SDK never creates, revokes, refreshes, or stores
+tokens.
+
+```ts
+const client = createClient({
+  tokenEnv: 'ERPBridge_TOKEN',
+  auth: { metrics: { tokenEnv: 'ERPBridge_METRICS_TOKEN' } },
+})
+```
+
+Per-surface credentials take precedence over the global credential for MCP,
+metrics, and logs. Open-mode servers continue to work anonymously. See the
+[SDK authentication guide](https://github.com/nmdra/erpbridge-docs/blob/main/docs/sdk/authentication.mdx)
+for scope declarations and typed 401/403 errors.
 
 ## Install
 
@@ -27,7 +45,7 @@ const client = createClient({ baseUrl: 'http://localhost:8080' })
 
 await client.mcp.connect()
 const result = await client.tools.list_employees({ department: 'engineering' })
-console.log(result.result)
+console.log(result.content)
 ```
 
 Browser applications can use the ESM build for `client.mcp` and
@@ -56,7 +74,7 @@ done, or `client.close()` to tear down the session.
 
 Two surfaces return different shapes — do not confuse them:
 
-- `client.registry.list()` is REST CRUD over the stored tool resources and
+- `client.registry.list({ name, version })` is REST CRUD over the stored tool resources and
   returns the full wire shape (`RegistryTool`: `apiVersion`/`kind`/`metadata`/
   `spec`).
 - `client.mcp.listTools()` is the MCP protocol `tools/list` and returns flat
@@ -72,6 +90,7 @@ Every failure is a typed error from a single hierarchy:
 ```
 ErpbridgeError
 ├── AuthenticationError  (server rejected the request as unauthenticated)
+├── AuthorizationError   (server rejected the request as unauthorized)
 ├── NotFoundError        (unknown tool or resource)
 ├── RateLimitError       (HTTP 429, with retryAfter)
 ├── ClientError          (HTTP 4xx with status and body)

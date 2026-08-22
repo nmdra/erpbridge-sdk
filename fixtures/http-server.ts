@@ -19,11 +19,15 @@ export interface Route {
 export interface FixtureServer {
   url: string
   close(): Promise<void>
+  /** Authorization values observed on requests, for injection assertions. */
+  authorizationHeaders(): Array<string | undefined>
 }
 
 /** Start a node:http fixture server on a random loopback port. */
 export async function startFixtureServer(routes: Route[]): Promise<FixtureServer> {
+  const authorizationHeaders: Array<string | undefined> = []
   const server: Server = createServer(async (req, res) => {
+    authorizationHeaders.push(req.headers.authorization)
     const rawBody = await readBody(req)
     const url = new URL(req.url ?? '/', 'http://localhost')
     const route = routes.find((r) => r.method === (req.method ?? 'GET') && r.path === url.pathname)
@@ -43,6 +47,7 @@ export async function startFixtureServer(routes: Route[]): Promise<FixtureServer
   const { port } = server.address() as AddressInfo
   return {
     url: `http://127.0.0.1:${port}`,
+    authorizationHeaders: () => [...authorizationHeaders],
     close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
   }
 }

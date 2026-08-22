@@ -1,11 +1,11 @@
 import type { McpClient } from './mcp.js'
 import { INVALID_PARAMS_CODE } from './mcp.js'
-import type { ToolCallArguments, ToolDefinition, ToolResult } from './types.js'
+import type { McpToolResult, ToolCallArguments, ToolDefinition } from './types.js'
 import { NotFoundError, ProtocolError } from './types.js'
 
 /** An executable proxy handle for one exact registered tool name. */
 export interface ToolFunction {
-  (args?: ToolCallArguments): Promise<ToolResult>
+  (args?: ToolCallArguments): Promise<McpToolResult>
   /** Chained handle for dotted tool names (`tools.system.progress_test`). */
   [name: string]: ToolFunction
 }
@@ -29,7 +29,7 @@ export function createToolsProxy(mcp: McpClient): Record<string, ToolFunction> {
   }
 
   const proxyFor = (name: string): ToolFunction => {
-    const fn = (async (args?: ToolCallArguments): Promise<ToolResult> => {
+    const fn = (async (args?: ToolCallArguments): Promise<McpToolResult> => {
       const byName = await ensureDiscovered()
       const def = byName.get(name)
       if (def === undefined) {

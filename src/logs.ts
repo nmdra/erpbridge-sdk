@@ -1,5 +1,6 @@
 import { INTERNAL_ERROR_CODE, protocolError } from './errors.js'
 import { request, requestStream } from './http.js'
+import { AuthenticationError, AuthorizationError } from './types.js'
 import type { ErpbridgeConfig, LogRecord } from './types.js'
 import { parseSse } from './sse.js'
 
@@ -29,7 +30,7 @@ export interface LogsApi {
 export function createLogsApi(config: ErpbridgeConfig): LogsApi {
   return {
     async recent(): Promise<LogRecord[]> {
-      const res = await request<unknown>(config, { path: '/api/logs/recent' })
+      const res = await request<unknown>(config, { path: '/api/logs/recent', surface: 'logs' })
       if (!Array.isArray(res.body)) {
         throw protocolError('invalid response from /api/logs/recent: expected an array of log records')
       }
@@ -61,7 +62,12 @@ export function createLogsApi(config: ErpbridgeConfig): LogsApi {
             for (;;) {
               if (aborted()) return
               try {
-                const res = await requestStream(config, { path: '/api/logs/stream', noTimeout: true, signal: combined })
+                const res = await requestStream(config, {
+                  path: '/api/logs/stream',
+                  noTimeout: true,
+                  signal: combined,
+                  surface: 'logs',
+                })
                 if (res.body === null) {
                   throw protocolError('empty SSE response body from /api/logs/stream')
                 }
@@ -75,7 +81,8 @@ export function createLogsApi(config: ErpbridgeConfig): LogsApi {
                   }
                   yield record
                 }
-              } catch {
+              } catch (error) {
+                if (error instanceof AuthenticationError || error instanceof AuthorizationError) throw error
                 // Transport failure: reconnect after the delay unless aborted.
               }
               await sleep()

@@ -5,6 +5,32 @@
  * the package root, `@erpbridge/sdk/types`, and `@erpbridge/sdk/rest`.
  */
 
+import type { CallToolResult } from '@modelcontextprotocol/client'
+
+/** Server authorization scope understood by the SDK's protected surfaces. */
+export type AuthScope = 'mcp' | 'metrics' | 'logs'
+
+/** Optional credential override for one protected SDK surface. */
+export interface SurfaceAuth {
+  token?: string
+  tokenEnv?: string
+  declaredScopes?: readonly AuthScope[]
+}
+
+/** A credential after environment resolution. */
+export interface ResolvedCredential {
+  token?: string
+  declaredScopes?: readonly AuthScope[]
+}
+
+/** Resolved credentials routed to the global and protected SDK surfaces. */
+export interface ResolvedAuth {
+  global: ResolvedCredential
+  mcp: ResolvedCredential
+  metrics: ResolvedCredential
+  logs: ResolvedCredential
+}
+
 /** Configuration for an {@link ErpbridgeClient}. */
 export interface ErpbridgeConfig {
   /**
@@ -29,17 +55,18 @@ export interface ErpbridgeConfig {
    * Injectable `fetch` implementation (defaults to the global `fetch`).
    */
   fetch?: typeof fetch
-  /**
-   * Bearer token for the server. Declared but inert in v1: v1 connects
-   * anonymously and surfaces server 401s as {@link AuthenticationError}.
-   * Activation is owned by the future auth plan (D17).
-   */
+  /** Bearer token for the server, when supplied by the application. */
   token?: string
-  /**
-   * Name of an environment variable holding the bearer token. Inert in v1,
-   * same as {@link ErpbridgeConfig.token}.
-   */
+  /** Name of an environment variable holding the bearer token. */
   tokenEnv?: string
+  /** Caller-declared scopes used only for optional local guards. */
+  declaredScopes?: readonly AuthScope[]
+  /** Per-surface credential overrides for MCP, metrics, and logs. */
+  auth?: {
+    mcp?: SurfaceAuth
+    metrics?: SurfaceAuth
+    logs?: SurfaceAuth
+  }
 }
 
 /**
@@ -71,20 +98,23 @@ export interface ToolDefinition {
 export interface ToolResult {
   /** The tool's output payload. */
   result: unknown
-  /** Error message, present when the tool itself failed. */
-  error?: string
+  /** Server error payload, present when the tool itself failed. */
+  error?: unknown
   /** True when the tool executed but reported a failure. */
   isError?: boolean
 }
+
+/** The complete protocol result returned by MCP `tools/call`. */
+export type McpToolResult = CallToolResult
 
 /** Arguments passed to a tool call. */
 export type ToolCallArguments = Record<string, unknown>
 
 /** Cache statistics reported by `GET /api/cache/stats`. */
 export interface CacheStats {
-  /** Number of exact-key cache entries (Redis DBSIZE). */
+  /** Number of exact-key cache entries. */
   exactKeys: number
-  /** Human-readable Redis memory usage, e.g. `"1.2M"`. */
+  /** Human-readable Redis memory usage, or empty when using memory mode. */
   redisMemory: string
 }
 
@@ -104,10 +134,10 @@ export interface RegistryToolMetadata {
 
 /** A tool resource as stored in the REST registry (wire shape). */
 export interface RegistryTool {
-  /** Resource API version, e.g. `"erpbridge.io/v1"`. */
-  apiVersion: string
-  /** Resource kind, always `"Tool"`. */
-  kind: string
+  /** Resource API version. */
+  apiVersion: 'erpbridge.io/v1'
+  /** Resource kind for server-managed MCP tools. */
+  kind: 'MCPTool'
   /** Versioned identity of the tool. */
   metadata: RegistryToolMetadata
   /** Behavior, interface, and execution details of the tool. */
@@ -166,6 +196,8 @@ export interface RegistryToolSecurity {
   authType: string
   /** Environment variable name or vault key holding the credential. */
   credentialRef: string
+  /** Roles permitted to select this tool at invocation time. */
+  allowedRoles?: readonly string[]
 }
 
 /** LLM routing hints for a registered tool. */
@@ -220,6 +252,17 @@ export interface RegistryDeleteOptions {
   hard?: boolean
 }
 
+/** Exact filters accepted by the registry list endpoint. */
+export interface RegistryListOptions {
+  name?: string
+  version?: string
+}
+
+/** Server role selector for direct REST invocation. */
+export interface DirectInvokeOptions {
+  role?: string
+}
+
 /** A single metric sample with its label set. */
 export interface MetricSample {
   /** Full series name, e.g. `erp_request_duration_seconds_bucket`. */
@@ -249,6 +292,10 @@ export interface MetricFamily {
 export interface ErpbridgeErrorOptions extends ErrorOptions {
   /** The `WWW-Authenticate` challenge value, when the server sent one. */
   hint?: string
+  /** The canonical `WWW-Authenticate` challenge value, when present. */
+  wwwAuthenticate?: string
+  /** Server-declared scope required by an authorization challenge. */
+  requiredScope?: string
   /** Raw response body attached for diagnostics. */
   body?: unknown
   /** The `Retry-After` header value, when the server sent one. */
@@ -265,7 +312,9 @@ export class ErpbridgeError extends Error {
   constructor(message: string, options: ErpbridgeErrorOptions = {}) {
     super(message, { cause: options.cause })
     this.name = new.target.name
-    this.hint = options.hint
+    this.hint = options.hint ?? options.wwwAuthenticate
+    this.wwwAuthenticate = options.wwwAuthenticate ?? options.hint
+    this.requiredScope = options.requiredScope
     this.body = options.body
     this.retryAfter = options.retryAfter
     this.status = options.status
@@ -273,6 +322,12 @@ export class ErpbridgeError extends Error {
 
   /** The `WWW-Authenticate` challenge value, when the server sent one. */
   readonly hint?: string
+
+  /** The canonical `WWW-Authenticate` challenge value, when present. */
+  readonly wwwAuthenticate?: string
+
+  /** Server-declared scope required by an authorization challenge. */
+  readonly requiredScope?: string
 
   /** Raw response body attached for diagnostics. */
   readonly body?: unknown
@@ -289,6 +344,9 @@ export class ErpbridgeError extends Error {
  * so this surfaces the server's own 401s untouched (D3/D17).
  */
 export class AuthenticationError extends ErpbridgeError {}
+
+/** The credential was recognized but is not authorized for the request (403). */
+export class AuthorizationError extends ErpbridgeError {}
 
 /**
  * The requested resource or tool does not exist (HTTP 404, or an MCP

@@ -1,15 +1,24 @@
-# Plan: ERPBridge SDK Auth — FUTURE (separate from the v1 plan)
+# Plan: ERPBridge SDK Auth — historical draft (superseded)
 
-> [!CAUTION]
-> **STRICT RULE: DO NOT IMPLEMENT THIS PLAN YET. IT IS A FUTURE PLAN.**
->
-> The v1 execution plan is `.agents/plans/Plan.md` and is **auth-free by design** (decision D17). This plan activates only when the ERPBridge server's own auth ships. Do not run these tasks as part of v1 work.
+> [!IMPORTANT]
+> ERPBridge server authentication shipped in `v0.3.0-alpha.1`. The active,
+> release-aligned implementation plan is now **“ERPBridge v0.3.0-alpha.1
+> compatibility upgrade”** in `.agents/plans/Plan.md`. Do not execute this
+> file separately: it records the pre-release design and is retained only for
+> historical context.
 
 ## Status
 
-- **Blocked on:** ERPBridge server auth — `ERPBridge/.agents/plans/Plan-Auth.md` tasks A1–A10 (all currently unchecked, verified 2026-08-20: no `API_AUTH_TOKEN` read, no `api_tokens` store, no `/apis/erpbridge.io/v1/tokens` route).
-- **Canonical activation rule:** SDK auth work may start only after server A1–A10 are merged and available for live verification, the v1 SDK plan is released, and the user explicitly authorizes SDK auth work. User authorization permits this plan to start; it does not waive the server-completion or v1-release prerequisites.
-- **Compatibility note:** the SDK config already declares inert `token?`/`tokenEnv?` fields (see Plan.md D17). Activating them is source-compatible but behavior-changing for consumers that already pass credentials: their values will begin to be sent as bearer tokens. Document that migration and select the semver treatment at activation time.
+- **Historical snapshot:** written before ERPBridge server authentication shipped;
+  its server-state claims, activation checklist, and unchecked tasks are not
+  current instructions.
+- **Canonical plan:** `.agents/plans/Plan.md`, “ERPBridge
+  v0.3.0-alpha.1 compatibility upgrade.” It incorporates the release contract,
+  current server evidence, current MCP v2 client behavior, and the approved
+  consume-only scope.
+- **Migration fact retained:** making the pre-existing inert `token?` and
+  `tokenEnv?` fields active is behavior-changing for callers that already pass
+  credentials. The active plan requires this to be documented and tested.
 
 ## Goal
 

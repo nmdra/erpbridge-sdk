@@ -18,6 +18,8 @@ export interface LogsSseOptions {
   closeAfterEmitted?: number
   /** Per-connection gate: return true to answer the SSE request with 500. */
   shouldFail?: () => boolean
+  /** Return an authorization failure from the SSE endpoint. */
+  streamFailure?: { status: 401 | 403; body?: unknown }
 }
 
 export interface LogsSseFixture {
@@ -25,6 +27,8 @@ export interface LogsSseFixture {
   close(): Promise<void>
   /** Number of SSE connections the fixture has accepted. */
   connections(): number
+  /** Authorization values observed on requests, for injection assertions. */
+  authorizationHeaders(): Array<string | undefined>
 }
 
 /** A node:http fixture serving the logs REST surface the server exposes. */
@@ -34,9 +38,11 @@ export async function startLogsSseFixture(options: LogsSseOptions = {}): Promise
   const events = options.events ?? []
   const intervalMs = options.intervalMs ?? 10
   let connections = 0
+  const authorizationHeaders: Array<string | undefined> = []
   const sockets = new Set<Socket>()
 
   const server: Server = createServer(async (req, res) => {
+    authorizationHeaders.push(req.headers.authorization)
     trackRequestSocket(req, res, sockets)
     const url = new URL(req.url ?? '/', 'http://localhost')
 
@@ -47,6 +53,10 @@ export async function startLogsSseFixture(options: LogsSseOptions = {}): Promise
 
     if (req.method === 'GET' && url.pathname === '/api/logs/stream') {
       connections++
+      if (options.streamFailure) {
+        respondJson(res, options.streamFailure.status, options.streamFailure.body ?? { error: 'authorization failed' })
+        return
+      }
       if (options.shouldFail?.()) {
         respondJson(res, 500, { error: 'boom: fixture failure' })
         return
@@ -80,6 +90,7 @@ export async function startLogsSseFixture(options: LogsSseOptions = {}): Promise
   return {
     url: `http://127.0.0.1:${port}`,
     connections: () => connections,
+    authorizationHeaders: () => [...authorizationHeaders],
     close: () => closeTrackedServer(server, sockets),
   }
 }

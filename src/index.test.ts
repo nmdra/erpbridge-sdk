@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it } from 'vites
 import { startFixtureServer, type FixtureServer } from '../fixtures/http-server.js'
 import { startMcpFixture, type McpFixture } from '../fixtures/mcp-server.js'
 import { createClient, type ErpbridgeClient } from './index.js'
+import type { McpToolResult as ClientMcpToolResult } from './client.js'
 import type { RegistryTool, ToolResult } from './types.js'
 import { ProtocolError } from './types.js'
 
@@ -11,7 +12,7 @@ let mcp: McpFixture
 
 const sampleTool: RegistryTool = {
   apiVersion: 'erpbridge.io/v1',
-  kind: 'Tool',
+  kind: 'MCPTool',
   metadata: { name: 'list_employees', version: '1.0.0', module: 'hr' },
   spec: {
     description: { short: 'List employees' },
@@ -73,7 +74,7 @@ describe('createClient', () => {
     const tools = await client.mcp.listTools()
     expect(tools.map((t) => t.name)).toEqual(['list_employees', 'system.progress_test'])
     expect(await client.tools.list_employees!({ limit: 10 })).toEqual({
-      result: { ok: true, tool: 'list_employees', args: { limit: 10 } },
+      content: [{ type: 'text', text: '{"ok":true,"tool":"list_employees","args":{"limit":10}}' }],
       isError: false,
     })
     await client.close()
@@ -100,9 +101,13 @@ describe('createClient', () => {
 
   it('pins the ErpbridgeClient public shape', () => {
     expectTypeOf<ErpbridgeClient['invoke']>().toEqualTypeOf<
-      (name: string, args: Record<string, unknown>) => Promise<ToolResult>
+      (name: string, args: Record<string, unknown>, opts?: { role?: string }) => Promise<ToolResult>
     >()
     expectTypeOf<ErpbridgeClient['health']>().toEqualTypeOf<() => Promise<{ status: string }>>()
     expectTypeOf<ErpbridgeClient['close']>().toEqualTypeOf<() => Promise<void>>()
+  })
+
+  it('exports the MCP result type from the client subpath source', () => {
+    expectTypeOf<ClientMcpToolResult>().toMatchTypeOf<{ content: readonly unknown[] }>()
   })
 })

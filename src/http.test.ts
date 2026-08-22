@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { IncomingMessage } from 'node:http'
 import { startFixtureServer, type FixtureServer, type Route } from '../fixtures/http-server.js'
-import { AuthenticationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
+import { AuthenticationError, AuthorizationError, ClientError, ErpbridgeError, NotFoundError, RateLimitError, ServerError } from './types.js'
 import { request, requestStream, type HttpResponse } from './http.js'
+import { resolveConfig } from './config.js'
 
 let fixture: FixtureServer
 
@@ -13,12 +14,15 @@ const routes: Route[] = [
   { method: 'GET', path: '/api/not-found', status: 404, body: { error: 'no such tool' } },
   { method: 'GET', path: '/api/server-error', status: 500, body: { message: 'cache not enabled' } },
   { method: 'GET', path: '/api/unauthorized', status: 401, headers: { 'WWW-Authenticate': 'Bearer realm="erpbridge"' }, body: { error: 'unauthorized' } },
+  { method: 'GET', path: '/api/forbidden', status: 403, body: { error: 'forbidden' } },
+  { method: 'GET', path: '/api/scope-forbidden', status: 403, headers: { 'WWW-Authenticate': 'Bearer error="insufficient_scope", scope="metrics"' }, body: { error: 'metrics scope required' } },
   { method: 'GET', path: '/api/rate-limited', status: 429, headers: { 'Retry-After': '30' }, body: { error: 'too many requests' } },
   { method: 'GET', path: '/api/plain', status: 200, headers: { 'Content-Type': 'text/plain' }, body: 'just text' },
   { method: 'GET', path: '/api/empty', status: 204 },
   { method: 'GET', path: '/api/slow', status: 200, body: { slow: true }, delayMs: 2000 },
   { method: 'POST', path: '/api/echo', body: (req: IncomingMessage, rawBody: string) => ({ method: req.method, body: rawBody }) },
   { method: 'GET', path: '/api/query', body: (req: IncomingMessage) => Object.fromEntries(new URL(req.url ?? '', 'http://localhost').searchParams) },
+  { method: 'GET', path: '/api/headers', body: (req: IncomingMessage) => ({ authorization: req.headers.authorization ?? null }) },
 ]
 
 beforeEach(async () => {
@@ -34,6 +38,67 @@ function cfg(timeoutMs = 500) {
 }
 
 describe('request', () => {
+  it('injects the resolved global bearer token', async () => {
+    const config = resolveConfig({ baseUrl: fixture.url, token: 'sdk-fixture-token' })
+    const res = await request<{ authorization: string | null }>(config, { path: '/api/headers' })
+    expect(res.body.authorization).toBe('Bearer sdk-fixture-token')
+  })
+
+  it('uses a surface token before the global token and the global token elsewhere', async () => {
+    const config = resolveConfig({
+      baseUrl: fixture.url,
+      token: 'sdk-global-fixture-token',
+      auth: { metrics: { token: 'sdk-metrics-fixture-token' } },
+    })
+    await request(config, { path: '/api/headers', surface: 'metrics' })
+    await request(config, { path: '/api/headers', surface: 'logs' })
+    expect(fixture.authorizationHeaders()).toEqual([
+      'Bearer sdk-metrics-fixture-token',
+      'Bearer sdk-global-fixture-token',
+    ])
+  })
+
+  it('resolves an environment token once at configuration time', async () => {
+    const envName = 'ERPBRIDGE_SDK_FIXTURE_TOKEN'
+    const previous = process.env[envName]
+    process.env[envName] = 'sdk-env-first-token'
+    try {
+      const config = resolveConfig({ baseUrl: fixture.url, tokenEnv: envName })
+      process.env[envName] = 'sdk-env-second-token'
+      const res = await request<{ authorization: string | null }>(config, { path: '/api/headers' })
+      expect(res.body.authorization).toBe('Bearer sdk-env-first-token')
+    } finally {
+      if (previous === undefined) delete process.env[envName]
+      else process.env[envName] = previous
+    }
+  })
+
+  it('uses a surface environment token before a global credential', async () => {
+    const envName = 'ERPBRIDGE_SDK_SURFACE_FIXTURE_TOKEN'
+    const previous = process.env[envName]
+    process.env[envName] = 'sdk-surface-env-token'
+    try {
+      const config = resolveConfig({
+        baseUrl: fixture.url,
+        token: 'sdk-global-fixture-token',
+        auth: { metrics: { tokenEnv: envName } },
+      })
+      await request(config, { path: '/api/headers', surface: 'metrics' })
+      expect(fixture.authorizationHeaders()).toEqual(['Bearer sdk-surface-env-token'])
+    } finally {
+      if (previous === undefined) delete process.env[envName]
+      else process.env[envName] = previous
+    }
+  })
+
+  it('preserves a caller Authorization header when no SDK token resolves', async () => {
+    const res = await request<{ authorization: string | null }>(cfg(), {
+      path: '/api/headers',
+      headers: { Authorization: 'Bearer sdk-caller-fixture-token' },
+    })
+    expect(res.body.authorization).toBe('Bearer sdk-caller-fixture-token')
+  })
+
   it('returns parsed JSON for 2xx responses', async () => {
     const res = await request(cfg(), { method: 'GET', path: '/api/ok' })
     expect(res.status).toBe(200)
@@ -65,6 +130,34 @@ describe('request', () => {
       name: 'AuthenticationError',
       hint: 'Bearer realm="erpbridge"',
     })
+  })
+
+  it('maps ordinary 403 to AuthorizationError without inventing a scope', async () => {
+    await expect(request(cfg(), { method: 'GET', path: '/api/forbidden' })).rejects.toBeInstanceOf(AuthorizationError)
+    await expect(request(cfg(), { method: 'GET', path: '/api/forbidden' })).rejects.toMatchObject({
+      name: 'AuthorizationError',
+      status: 403,
+      body: { error: 'forbidden' },
+      requiredScope: undefined,
+    })
+  })
+
+  it('preserves a server-declared insufficient scope challenge', async () => {
+    await expect(request(cfg(), { method: 'GET', path: '/api/scope-forbidden' })).rejects.toMatchObject({
+      name: 'AuthorizationError',
+      status: 403,
+      requiredScope: 'metrics',
+      wwwAuthenticate: 'Bearer error="insufficient_scope", scope="metrics"',
+    })
+  })
+
+  it('fails before I/O when declared scopes exclude the requested surface', async () => {
+    const config = resolveConfig({ baseUrl: fixture.url, token: 'sdk-fixture-token', declaredScopes: ['mcp'] })
+    await expect(request(config, { path: '/api/headers', surface: 'metrics' })).rejects.toMatchObject({
+      name: 'AuthorizationError',
+      requiredScope: 'metrics',
+    })
+    expect(fixture.authorizationHeaders()).toEqual([])
   })
 
   it('maps 429 to RateLimitError with Retry-After', async () => {

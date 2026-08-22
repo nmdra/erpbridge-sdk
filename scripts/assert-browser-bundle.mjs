@@ -40,11 +40,11 @@ try {
   mkdirSync(consumerRoot, { recursive: true })
   writeFileSync(
     join(consumerRoot, 'root.ts'),
-    "import { createClient } from '@erpbridge/sdk'\nexport const client = createClient\n",
+    "import { createClient } from '@erpbridge/sdk'\nconst client = createClient({ baseUrl: 'https://bridge.example.com' })\nexport const mcp = client.mcp\nexport const tools = client.tools\n",
   )
   writeFileSync(
     join(consumerRoot, 'client.ts'),
-    "import { createClient } from '@erpbridge/sdk/client'\nexport const client = createClient\n",
+    "import { createClient } from '@erpbridge/sdk/client'\nconst client = createClient({ baseUrl: 'https://bridge.example.com' })\nexport const mcp = client.mcp\nexport const tools = client.tools\n",
   )
 
   const result = await build({

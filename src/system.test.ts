@@ -65,6 +65,22 @@ describe('createSystemApi', () => {
     expect(await api.cache.stats()).toEqual({ exactKeys: 12, redisMemory: '1.2M' })
   })
 
+  it('cache.stats() accepts memory-mode stats without Redis memory usage', async () => {
+    const scoped = await startFixtureServer([
+      {
+        method: 'GET',
+        path: '/api/cache/stats',
+        body: { apiVersion: 'v1', kind: 'CacheStats', status: 'active', stats: { exactKeys: 0, redisMemory: '' } },
+      },
+    ])
+    try {
+      const api = createSystemApi({ ...config(), baseUrl: scoped.url })
+      expect(await api.cache.stats()).toEqual({ exactKeys: 0, redisMemory: '' })
+    } finally {
+      await scoped.close()
+    }
+  })
+
   it('cache.stats() throws a typed error for a missing stats envelope', async () => {
     const scoped = await startFixtureServer([{ method: 'GET', path: '/api/cache/stats', body: { kind: 'CacheStats' } }])
     try {
