@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
 
+## [1.0.0](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.2...sdk-v1.0.0) (2026-08-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sdk:** align client with ERPBridge v0.3
+
+### Features
+
+* **sdk:** align client with ERPBridge v0.3 ([1cdcebe](https://github.com/nmdra/erpbridge-sdk/commit/1cdcebee223da5a69f741f6827ccccb6ff1d208a))
+
 ## [0.1.2](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.1...sdk-v0.1.2) (2026-08-21)
 
 
