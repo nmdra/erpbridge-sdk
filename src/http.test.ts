@@ -73,6 +73,40 @@ describe('request', () => {
     }
   })
 
+  it('uses ERPBRIDGE_TOKEN as the canonical default environment credential', async () => {
+    const previousCanonical = process.env.ERPBRIDGE_TOKEN
+    const previousLegacy = process.env.ERPBridge_TOKEN
+    process.env.ERPBRIDGE_TOKEN = 'sdk-canonical-default-token'
+    process.env.ERPBridge_TOKEN = 'sdk-legacy-default-token'
+    try {
+      const config = resolveConfig({ baseUrl: fixture.url })
+      const res = await request<{ authorization: string | null }>(config, { path: '/api/headers' })
+      expect(res.body.authorization).toBe('Bearer sdk-canonical-default-token')
+    } finally {
+      if (previousCanonical === undefined) delete process.env.ERPBRIDGE_TOKEN
+      else process.env.ERPBRIDGE_TOKEN = previousCanonical
+      if (previousLegacy === undefined) delete process.env.ERPBridge_TOKEN
+      else process.env.ERPBridge_TOKEN = previousLegacy
+    }
+  })
+
+  it('falls back to ERPBridge_TOKEN for existing consumers when the canonical variable is absent', async () => {
+    const previousCanonical = process.env.ERPBRIDGE_TOKEN
+    const previousLegacy = process.env.ERPBridge_TOKEN
+    delete process.env.ERPBRIDGE_TOKEN
+    process.env.ERPBridge_TOKEN = 'sdk-legacy-default-token'
+    try {
+      const config = resolveConfig({ baseUrl: fixture.url })
+      const res = await request<{ authorization: string | null }>(config, { path: '/api/headers' })
+      expect(res.body.authorization).toBe('Bearer sdk-legacy-default-token')
+    } finally {
+      if (previousCanonical === undefined) delete process.env.ERPBRIDGE_TOKEN
+      else process.env.ERPBRIDGE_TOKEN = previousCanonical
+      if (previousLegacy === undefined) delete process.env.ERPBridge_TOKEN
+      else process.env.ERPBridge_TOKEN = previousLegacy
+    }
+  })
+
   it('uses a surface environment token before a global credential', async () => {
     const envName = 'ERPBRIDGE_SDK_SURFACE_FIXTURE_TOKEN'
     const previous = process.env[envName]

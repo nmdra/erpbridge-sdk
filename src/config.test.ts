@@ -39,25 +39,25 @@ describe('resolveConfig', () => {
   it('retains auth input alongside normalized credentials', () => {
     const config = resolveConfig({
       token: 'abc',
-      tokenEnv: 'ERPBridge_TOKEN',
+      tokenEnv: 'ERPBRIDGE_TOKEN',
       declaredScopes: ['mcp'],
       auth: { logs: { token: 'logs-token', declaredScopes: ['logs'] } },
     })
     expect(config.token).toBe('abc')
-    expect(config.tokenEnv).toBe('ERPBridge_TOKEN')
+    expect(config.tokenEnv).toBe('ERPBRIDGE_TOKEN')
     expect(config.declaredScopes).toEqual(['mcp'])
     expect(config.auth).toEqual({ logs: { token: 'logs-token', declaredScopes: ['logs'] } })
   })
 
-  it('resolves ERPBridge_TOKEN internally without exposing the bearer value', () => {
-    const previous = process.env.ERPBridge_TOKEN
-    process.env.ERPBridge_TOKEN = 'sdk-default-env-token'
+  it('resolves ERPBRIDGE_TOKEN internally without exposing the bearer value', () => {
+    const previous = process.env.ERPBRIDGE_TOKEN
+    process.env.ERPBRIDGE_TOKEN = 'sdk-default-env-token'
     try {
       const config = resolveConfig()
       expect(config).not.toHaveProperty('resolvedAuth')
     } finally {
-      if (previous === undefined) delete process.env.ERPBridge_TOKEN
-      else process.env.ERPBridge_TOKEN = previous
+      if (previous === undefined) delete process.env.ERPBRIDGE_TOKEN
+      else process.env.ERPBRIDGE_TOKEN = previous
     }
   })
 

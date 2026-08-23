@@ -326,8 +326,9 @@ For each protected surface use this precedence:
 1. surface `token`;
 2. surface `tokenEnv` value, if non-empty;
 3. global `token`;
-4. global `tokenEnv` value, defaulting the name to `ERPBridge_TOKEN` when it
-   was omitted;
+4. global `tokenEnv` value, defaulting the name to `ERPBRIDGE_TOKEN` when it
+   was omitted; if that canonical variable is absent, read the legacy
+   `ERPBridge_TOKEN` variable for backward compatibility;
 5. anonymous access.
 
 `declaredScopes` follows the winning credential level. It is only a caller
@@ -383,6 +384,8 @@ new test/environment discoveries.
 - [x] **R7 — Align cache and opt-in integration proof (`test:` / `docs:`).** Make no-Redis fixture coverage return valid memory-mode stats (including empty `redisMemory`); retain 503 coverage only for a genuinely unavailable cache. Add `tests/integration/auth.test.ts`, skipped unless `ERPBridge_TEST_SERVER` and safely provisioned scoped/admin token variables exist. Cover scoped surfaces, admin registry/cache/direct invoke, 401/403 mapping, role-guarded calls, filters, and an MCP envelope. Tokens are provisioned externally with server tooling; never created, logged, or revealed by this SDK. Preserve anonymous integration testing with only `ERPBridge_TEST_SERVER`. **Verify:** fixture suite red then green; full package gates; safely provisioned `ERPBridge_TEST_SERVER=… npm run test:integration`; scratch report only for a discovery/failure/flake.
 
 - [x] **R8 — Verify the packed release and documentation (`test:`/`docs:` only for corrections).** Pack the SDK and test clean Node ESM, Node CJS, and Vite MCP/tools consumers. Confirm root, `./client`, `./rest`, and `./types` exports; MCP remains external; browser output has no `node:*`; and type consumers distinguish `McpToolResult` from `ToolResult`. Review all SDK docs plus the agent guide for one consistent credential/error/result story. Leave release version entries to release-please. **Verify:** `npm test && npm run typecheck && npm run build && npm run test:browser-bundle && npm run lint:publish`, packed ESM/CJS smoke, docs-site `npm run build`.
+
+- [x] **R9 — Normalize the default credential environment variable (`fix:`).** Use `ERPBRIDGE_TOKEN` as the canonical default environment variable, retain `ERPBridge_TOKEN` only as a fallback for existing consumers, and keep explicit `tokenEnv` precedence unchanged. Add fixture coverage for canonical-default selection and legacy fallback without exposing credential values. Update README, CHANGELOG Unreleased, and paired SDK authentication/API-reference/agent-guide docs with the migration note. **Verify:** focused red then `npm test && npm run typecheck && npm run build && npm run lint:publish`; docs-site `npm run build`.
 
 ## Completion criteria
 

@@ -66,3 +66,5 @@ The plan evolves from evidence, agent-assisted:
 ## Evolution Log
 
 > Entries are appended here as the plan evolves — start empty. Include `Evidence: <report filename>` without a Markdown link so each conclusion remains traceable.
+
+2026-08-23 — R9 publish-gate execution hit the known sandbox restriction on the nested npm pack subprocess; build, attw, and publint passed before the pack step. The approved elevated retry is required for this environment and does not change the product plan. Evidence: 2026-08-23T111853Z_R9_publish-gate_sandbox-failure.md

@@ -26,7 +26,8 @@ export interface ErpbridgeConfigInput {
 
 const DEFAULT_BASE_URL = 'http://localhost:8080'
 const DEFAULT_TIMEOUT_MS = 15_000
-const DEFAULT_TOKEN_ENV = 'ERPBridge_TOKEN'
+const DEFAULT_TOKEN_ENV = 'ERPBRIDGE_TOKEN'
+const LEGACY_DEFAULT_TOKEN_ENV = 'ERPBridge_TOKEN'
 const resolvedAuthByConfig = new WeakMap<ErpbridgeConfig, ResolvedAuth>()
 
 /**
@@ -82,9 +83,14 @@ function resolveSurfaceCredential(surface: SurfaceAuth | undefined, global: Reso
 function resolveCredential(source: SurfaceAuth, useDefaultEnvironment: boolean): ResolvedCredential {
   const explicit = nonEmpty(source.token)
   if (explicit) return { token: explicit, declaredScopes: source.declaredScopes }
-  const environmentName = source.tokenEnv === undefined && useDefaultEnvironment ? DEFAULT_TOKEN_ENV : source.tokenEnv
+  const usesDefaultEnvironment = source.tokenEnv === undefined && useDefaultEnvironment
+  const environmentName = usesDefaultEnvironment ? DEFAULT_TOKEN_ENV : source.tokenEnv
   const fromEnv = readEnvironment(environmentName)
   if (fromEnv) return { token: fromEnv, declaredScopes: source.declaredScopes }
+  if (usesDefaultEnvironment) {
+    const legacy = readEnvironment(LEGACY_DEFAULT_TOKEN_ENV)
+    if (legacy) return { token: legacy, declaredScopes: source.declaredScopes }
+  }
   return {}
 }
 

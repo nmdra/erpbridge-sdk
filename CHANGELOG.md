@@ -56,6 +56,8 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 ### Fixed
 
+- Use `ERPBRIDGE_TOKEN` as the canonical default credential environment
+  variable, with `ERPBridge_TOKEN` retained as a legacy fallback.
 - Removed the runtime `node:module` dependency from the MCP client version
   lookup so browser ESM bundlers can use the MCP/tools surface without a Node
   built-in polyfill. Node ESM and CJS consumers remain supported.

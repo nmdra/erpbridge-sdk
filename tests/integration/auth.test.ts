@@ -23,7 +23,7 @@ function makeClient(token?: string): ErpbridgeClient {
 }
 
 function makeAnonymousClient(): ErpbridgeClient {
-  // An explicit empty tokenEnv disables the default ERPBridge_TOKEN fallback.
+  // An explicit empty tokenEnv disables the default ERPBRIDGE_TOKEN fallback.
   return createClient({ baseUrl: serverUrl!, tokenEnv: '', timeoutMs: 15_000 })
 }
 

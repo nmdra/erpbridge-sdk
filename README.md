@@ -20,10 +20,14 @@ tokens.
 
 ```ts
 const client = createClient({
-  tokenEnv: 'ERPBridge_TOKEN',
-  auth: { metrics: { tokenEnv: 'ERPBridge_METRICS_TOKEN' } },
+  tokenEnv: 'ERPBRIDGE_TOKEN',
+  auth: { metrics: { tokenEnv: 'ERPBRIDGE_METRICS_TOKEN' } },
 })
 ```
+
+The default environment variable is `ERPBRIDGE_TOKEN`. For compatibility,
+`ERPBridge_TOKEN` is used only when the canonical variable is absent; migrate
+existing deployments to the all-caps name.
 
 Per-surface credentials take precedence over the global credential for MCP,
 metrics, and logs. Open-mode servers continue to work anonymously. See the
