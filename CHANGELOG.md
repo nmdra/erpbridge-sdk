@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
 
+## [1.0.1](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v1.0.0...sdk-v1.0.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* **auth:** normalize default credential environment variable ([64519fb](https://github.com/nmdra/erpbridge-sdk/commit/64519fb9f4fe43ca844ad9928ac501b3a72ed7db))
+
 ## [1.0.0](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v0.1.2...sdk-v1.0.0) (2026-08-22)
 
 
