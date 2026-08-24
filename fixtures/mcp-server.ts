@@ -37,6 +37,8 @@ export interface McpFixture {
   lastClientInfo(): { name?: unknown; version?: unknown } | undefined
   /** Authorization values observed on MCP requests, for injection assertions. */
   authorizationHeaders(): Array<string | undefined>
+  /** Number of attempted `tools/call` requests, including expired-session attempts. */
+  toolCallCount(): number
 }
 
 const DEFAULT_TOOLS: McpToolFixture[] = [
@@ -57,6 +59,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
   const tools = options.tools ?? DEFAULT_TOOLS
   let sessionCounter = 0
   let handshakes = 0
+  let toolCalls = 0
   let clientInfo: { name?: unknown; version?: unknown } | undefined
   const sessionRequests = new Map<string, number>()
   const sockets = new Set<Socket>()
@@ -104,6 +107,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
 
     const sessionId = typeof req.headers['mcp-session-id'] === 'string' ? req.headers['mcp-session-id'] : undefined
     const method = msg.method ?? ''
+    if (method === 'tools/call') toolCalls++
 
     if (method !== 'initialize') {
       if (sessionId === undefined || !sessionRequests.has(sessionId)) {
@@ -217,6 +221,7 @@ export async function startMcpFixture(options: McpFixtureOptions = {}): Promise<
     handshakeCount: () => handshakes,
     lastClientInfo: () => clientInfo,
     authorizationHeaders: () => [...authorizationHeaders],
+    toolCallCount: () => toolCalls,
     close: () => closeTrackedServer(server, sockets),
   }
 }

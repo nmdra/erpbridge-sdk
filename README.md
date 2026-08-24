@@ -34,6 +34,29 @@ metrics, and logs. Open-mode servers continue to work anonymously. See the
 [SDK authentication guide](https://github.com/nmdra/erpbridge-docs/blob/main/docs/sdk/authentication.mdx)
 for scope declarations and typed 401/403 errors.
 
+## MCP retry policy
+
+MCP transport failures reconnect once by default for compatibility:
+
+```ts
+const client = createClient({ baseUrl: 'http://localhost:8080' })
+```
+
+For side-effecting operations where the server may have completed a request
+before the response was lost, disable replay explicitly:
+
+```ts
+const client = createClient({
+  baseUrl: 'http://localhost:8080',
+  mcpRetryPolicy: 'never',
+})
+```
+
+With `mcpRetryPolicy: 'never'`, a transport failure becomes a typed
+`ProtocolError` and the SDK does not reconnect or issue a second tool call.
+Use idempotency keys or an application-level recovery process before retrying
+ambiguous side effects.
+
 ## Install
 
 ```bash

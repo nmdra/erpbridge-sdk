@@ -42,6 +42,7 @@ All notable changes to this project will be documented in this file. See [Keep a
 
 ### Added
 
+- `mcpRetryPolicy: 'once' | 'never'` controls MCP transport replay. The default preserves one reconnect; `never` prevents duplicate tool calls after an ambiguous transport failure.
 - `ClientError` — typed HTTP 4xx (other than 401/404/429): the new `ErpbridgeError` subclass for bad requests and admission failures.
 - Public `AuthScope` and `SurfaceAuth` configuration types, plus
   `AuthorizationError` for the ERPBridge 403 contract. Credential injection

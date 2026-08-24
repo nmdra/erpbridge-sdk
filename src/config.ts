@@ -1,4 +1,4 @@
-import { ErpbridgeError, type AuthScope, type ErpbridgeConfig, type ResolvedAuth, type ResolvedCredential, type SurfaceAuth } from './types.js'
+import { ErpbridgeError, type AuthScope, type ErpbridgeConfig, type McpRetryPolicy, type ResolvedAuth, type ResolvedCredential, type SurfaceAuth } from './types.js'
 
 /** Partial configuration accepted by the client factory before normalization. */
 export interface ErpbridgeConfigInput {
@@ -8,6 +8,8 @@ export interface ErpbridgeConfigInput {
   mcpUrl?: string
   /** Per-request timeout in milliseconds. */
   timeoutMs?: number
+  /** Retry transport failures once, or never retry an MCP operation. */
+  mcpRetryPolicy?: McpRetryPolicy
   /** Injectable `fetch` implementation. */
   fetch?: typeof fetch
   /** Bearer token for the server, when supplied by the application. */
@@ -39,10 +41,15 @@ const resolvedAuthByConfig = new WeakMap<ErpbridgeConfig, ResolvedAuth>()
 export function resolveConfig(input: ErpbridgeConfigInput = {}): ErpbridgeConfig {
   const baseUrl = normalizeBaseUrl(input.baseUrl ?? DEFAULT_BASE_URL)
   const mcpUrl = input.mcpUrl ?? `${baseUrl}/mcp/`
+  const mcpRetryPolicy = input.mcpRetryPolicy ?? 'once'
+  if (mcpRetryPolicy !== 'once' && mcpRetryPolicy !== 'never') {
+    throw new ErpbridgeError(`invalid mcpRetryPolicy: ${String(mcpRetryPolicy)}`)
+  }
   const config: ErpbridgeConfig = {
     baseUrl,
     mcpUrl,
     timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    mcpRetryPolicy,
     fetch: input.fetch ?? globalThis.fetch,
     token: input.token,
     tokenEnv: input.tokenEnv,
