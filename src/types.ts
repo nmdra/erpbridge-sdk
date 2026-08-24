@@ -10,6 +10,9 @@ import type { CallToolResult } from '@modelcontextprotocol/client'
 /** Server authorization scope understood by the SDK's protected surfaces. */
 export type AuthScope = 'mcp' | 'metrics' | 'logs'
 
+/** Retry policy for MCP operations. `never` is appropriate for side effects without idempotency. */
+export type McpRetryPolicy = 'once' | 'never'
+
 /** Optional credential override for one protected SDK surface. */
 export interface SurfaceAuth {
   token?: string
@@ -51,6 +54,8 @@ export interface ErpbridgeConfig {
    * @default 15_000
    */
   timeoutMs: number
+  /** Retry transport failures once, or never retry an MCP operation. Defaults to `once` for direct configs. */
+  mcpRetryPolicy?: McpRetryPolicy
   /**
    * Injectable `fetch` implementation (defaults to the global `fetch`).
    */

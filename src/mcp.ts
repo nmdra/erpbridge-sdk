@@ -110,12 +110,21 @@ export class McpClient {
   }
 
   /**
-   * Execute an operation with at most one transparent reconnect: on a
-   * transport-level failure, create a new transport and re-initialize, then
-   * retry once. Protocol answers (typed errors) are never retried. A second
-   * transport failure throws {@link ProtocolError} (R2).
+   * Execute an operation with the configured transport retry policy. The
+   * default reconnects once for compatibility; `never` converts a transport
+   * failure directly into a ProtocolError so a possibly-completed side effect
+   * is never replayed by the SDK.
    */
   private async execute<T>(op: () => Promise<T>): Promise<T> {
+    if ((this.config.mcpRetryPolicy ?? 'once') === 'never') {
+      try {
+        return await op()
+      } catch (error) {
+        if (isProtocolAnswer(error)) throw error
+        throw toProtocolError(error)
+      }
+    }
+
     let retried = false
     for (;;) {
       try {

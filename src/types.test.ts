@@ -96,6 +96,7 @@ describe('config and data types', () => {
       baseUrl: string
       mcpUrl: string
       timeoutMs: number
+      mcpRetryPolicy?: 'once' | 'never'
       fetch?: typeof fetch
       token?: string
       tokenEnv?: string

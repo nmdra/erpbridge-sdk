@@ -8,6 +8,7 @@ describe('resolveConfig', () => {
     expect(config.baseUrl).toBe('http://localhost:8080')
     expect(config.mcpUrl).toBe('http://localhost:8080/mcp/')
     expect(config.timeoutMs).toBe(15_000)
+    expect(config.mcpRetryPolicy).toBe('once')
     expect(config.fetch).toBe(globalThis.fetch)
     expect(config.token).toBeUndefined()
     expect(config.tokenEnv).toBeUndefined()
@@ -64,6 +65,10 @@ describe('resolveConfig', () => {
   it('rejects a malformed baseUrl early', () => {
     expect(() => resolveConfig({ baseUrl: 'not a url' })).toThrow(ErpbridgeError)
   })
+
+  it('rejects an unknown MCP retry policy early', () => {
+    expect(() => resolveConfig({ mcpRetryPolicy: 'always' as never })).toThrow('invalid mcpRetryPolicy')
+  })
 })
 
 describe('ErpbridgeConfigInput type', () => {
@@ -72,6 +77,7 @@ describe('ErpbridgeConfigInput type', () => {
       baseUrl: 'http://x',
       mcpUrl: 'http://y/mcp',
       timeoutMs: 100,
+      mcpRetryPolicy: 'never',
       fetch: undefined,
       token: undefined,
       tokenEnv: undefined,

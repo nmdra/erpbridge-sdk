@@ -218,6 +218,21 @@ describe('McpClient', () => {
     }
   })
 
+  it('does not reconnect when the retry policy is never', async () => {
+    const expiring = await startMcpFixture({ expireAfterRequests: 1 })
+    try {
+      const client = new McpClient({ ...config(), mcpUrl: expiring.mcpUrl, mcpRetryPolicy: 'never' })
+      await client.connect()
+      await client.listTools()
+      await expect(client.callTool('list_employees', {})).rejects.toBeInstanceOf(ProtocolError)
+      expect(expiring.handshakeCount()).toBe(1)
+      expect(expiring.toolCallCount()).toBe(1)
+      await client.close()
+    } finally {
+      await expiring.close()
+    }
+  })
+
   it('throws ProtocolError when a second reconnect would be needed', async () => {
     const expiring = await startMcpFixture({ expireAfterRequests: 0 })
     try {
