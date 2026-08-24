@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) for the format.
 
+## [1.1.0](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v1.0.1...sdk-v1.1.0) (2026-08-24)
+
+
+### Features
+
+* **mcp:** add configurable transport retry policy ([9fbde7d](https://github.com/nmdra/erpbridge-sdk/commit/9fbde7d28f10d2dba4c3d70b0769153b00a7c7a1))
+
 ## [1.0.1](https://github.com/nmdra/erpbridge-sdk/compare/sdk-v1.0.0...sdk-v1.0.1) (2026-08-23)
 
 
