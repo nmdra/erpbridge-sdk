@@ -73,7 +73,7 @@ jobs:
       contents: read
     # google/osv-scanner-action v2.5.1 — reusable PR workflow that scans the
     # merge ref, compares against the base, and uploads SARIF to code scanning.
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@6e4298ebc4db23e847df9b2e2de2939d6f066c67
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc
     with:
       fail-on-vuln: true
 
